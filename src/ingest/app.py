@@ -78,8 +78,8 @@ def _post_metrics(event, user_id):
     )
 
     item = {
-        "PK": f"USER#{user_id}",
-        "SK": f"TS#{timestamp}",
+        "User": f"USER#{user_id}",
+        "Timestamp": f"TS#{timestamp}",
         "type": "reading",
         "timestamp": timestamp,
         "dbA": decimal.Decimal(str(db_a)),
@@ -97,7 +97,7 @@ def _post_metrics(event, user_id):
 
 def _get_history(user_id):
     result = _table.query(
-        KeyConditionExpression=Key("PK").eq(f"USER#{user_id}") & Key("SK").begins_with("TS#"),
+        KeyConditionExpression=Key("User").eq(f"USER#{user_id}") & Key("Timestamp").begins_with("TS#"),
         ScanIndexForward=False,  # newest first
         Limit=100,
     )
