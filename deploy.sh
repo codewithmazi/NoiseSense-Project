@@ -1,7 +1,5 @@
 #!/usr/bin/env bash
-# Deploy the noise-exposure backend from AWS CloudShell / Cloud9.
-# Usage: ./deploy.sh <LabRoleArn> [envName]
-# Example: ./deploy.sh arn:aws:iam::123456789012:role/LabRole dev
+
 set -euo pipefail
 
 LAB_ROLE_ARN="${1:?Usage: ./deploy.sh <LabRoleArn> [envName]}"

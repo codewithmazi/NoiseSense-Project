@@ -19,16 +19,14 @@ Parameters:
     AllowedPattern: '^arn:aws:iam::\d{12}:role/LabRole$'
 
 Resources:
-  # Minimal, harmless resource so the Stage 0 stack deploys cleanly and the
-  # deploy pipeline can be validated end-to-end. Also seeds a config namespace
-  # used by later stages (thresholds, table name, etc.).
+  # m
   AppNameParameter:
     Type: AWS::SSM::Parameter
     Properties:
       Name: !Sub '/noise/${EnvName}/app-name'
       Type: String
       Value: noise-exposure-backend
-      Description: Application name marker for the noise-exposure backend.
+      Description: Application name for the noise-exposure backend.
 
 Outputs:
   Environment:

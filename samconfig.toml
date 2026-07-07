@@ -1,6 +1,6 @@
 version = 0.1
 
-# Default deploy configuration for the AWS Academy Learner Lab.
+# Default deploy configuration
 # Replace REPLACE_WITH_LABROLE_ARN before deploying, or pass --parameter-overrides.
 # Region is us-east-1 (vockey key pair and LabInstanceProfile are available there).
 
