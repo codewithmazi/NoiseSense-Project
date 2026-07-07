@@ -1,9 +1,7 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
 Description: >
-  Noise Exposure backend (proof-of-concept) - Stage 0 foundations.
-  AWS Academy Learner Lab: all execution roles use the pre-created LabRole;
-  this template creates NO IAM roles.
+  Noise Exposure backend (proof-of-concept)
 
 Parameters:
   EnvName:
@@ -14,8 +12,8 @@ Parameters:
   LabRoleArn:
     Type: String
     Description: >
-      ARN of the pre-created LabRole. Used as the execution role for every
-      Lambda and Step Functions resource added in later stages.
+      ARN of the provided LabRole. Used as the execution role for every
+      Lambda and Step Functions resource.
     AllowedPattern: '^arn:aws:iam::\d{12}:role/LabRole$'
 
 Resources:
@@ -28,6 +26,69 @@ Resources:
       Value: noise-exposure-backend
       Description: Application name for the noise-exposure backend.
 
+
+      ## NoSQL DATABASE ##
+  NoiseTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub 'noise-data-${EnvName}'
+      BillingMode: PAY_PER_REQUEST         
+      AttributeDefinitions:
+        - AttributeName: User
+          AttributeType: S
+        - AttributeName: Timestamp
+          AttributeType: S
+      KeySchema:
+        - AttributeName: User
+          KeyType: HASH                     # partition key
+        - AttributeName: Timestamp
+          KeyType: RANGE                    # sort key
+      StreamSpecification:
+        StreamViewType: NEW_AND_OLD_IMAGES  # enables downstream triggers in later stages
+      SSESpecification:
+        SSEEnabled: true                    # encryption at rest (AWS-managed key; maybe CMK later)
+      Tags:
+        - Key: project
+          Value: noise-exposure
+        - Key: env
+          Value: !Ref EnvName
+
+
+          ## STORAGE ##
+  DataBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: noise-exposure-data-arc45
+      PublicAccessBlockConfiguration:       #blocking public access
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256          # default encryption at rest
+      Tags:
+        - Key: project
+          Value: noise-exposure
+        - Key: env
+          Value: !Ref EnvName
+
+
+          ## PARAMETERS ##
+  TableNameParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub '/noise/${EnvName}/table-name'
+      Type: String
+      Value: !Ref NoiseTable
+
+  BucketNameParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub '/noise/${EnvName}/bucket-name'
+      Type: String
+      Value: !Ref DataBucket
 Outputs:
   Environment:
     Description: Environment name for this stack.
@@ -38,3 +99,12 @@ Outputs:
   ConfigNamespace:
     Description: SSM Parameter Store namespace for app configuration.
     Value: !Sub '/noise/${EnvName}'
+  TableName:
+    Description: DynamoDB table name.
+    Value: !Ref NoiseTable
+  TableStreamArn:
+    Description: DynamoDB Streams ARN (to be used later).
+    Value: !GetAtt NoiseTable.StreamArn
+  BucketName:
+    Description: S3 data bucket name.
+    Value: !Ref DataBucket
