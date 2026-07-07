@@ -1,0 +1,42 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  Noise Exposure backend (proof-of-concept) - Stage 0 foundations.
+  AWS Academy Learner Lab: all execution roles use the pre-created LabRole;
+  this template creates NO IAM roles.
+
+Parameters:
+  EnvName:
+    Type: String
+    Default: dev
+    AllowedPattern: '[a-z0-9-]+'
+    Description: Environment name used for resource naming (e.g. dev, test).
+  LabRoleArn:
+    Type: String
+    Description: >
+      ARN of the pre-created LabRole. Used as the execution role for every
+      Lambda and Step Functions resource added in later stages.
+    AllowedPattern: '^arn:aws:iam::\d{12}:role/LabRole$'
+
+Resources:
+  # Minimal, harmless resource so the Stage 0 stack deploys cleanly and the
+  # deploy pipeline can be validated end-to-end. Also seeds a config namespace
+  # used by later stages (thresholds, table name, etc.).
+  AppNameParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub '/noise/${EnvName}/app-name'
+      Type: String
+      Value: noise-exposure-backend
+      Description: Application name marker for the noise-exposure backend.
+
+Outputs:
+  Environment:
+    Description: Environment name for this stack.
+    Value: !Ref EnvName
+  LabRoleArnInUse:
+    Description: LabRole ARN configured for execution roles.
+    Value: !Ref LabRoleArn
+  ConfigNamespace:
+    Description: SSM Parameter Store namespace for app configuration.
+    Value: !Sub '/noise/${EnvName}'

@@ -1,0 +1,28 @@
+name: CI
+
+# Continuous Integration: validate and lint the IaC template on every push/PR.
+# No AWS credentials are needed for linting, so this runs safely without lab secrets.
+# (Continuous Deployment is added in Stage 7 as a separate workflow.)
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install cfn-lint
+        run: pip install cfn-lint
+
+      - name: Lint SAM/CloudFormation template
+        run: cfn-lint template.yaml

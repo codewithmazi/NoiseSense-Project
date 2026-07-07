@@ -1,0 +1,17 @@
+# AWS SAM build artifacts
+.aws-sam/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Local / secret config (never commit lab credentials)
+.env
+*.local.toml
+samconfig-local.toml
+
+# OS / editor
+.DS_Store
+*.swp
