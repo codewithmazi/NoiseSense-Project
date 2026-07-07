@@ -137,6 +137,46 @@ Resources:
       Value: !Ref UserPoolClient
 
 
+              ## API ##
+  NoiseHttpApi:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      Auth:
+        Authorizers:
+          CognitoJwtAuthorizer:
+            IdentitySource: "$request.header.Authorization"
+            JwtConfiguration:
+              issuer: !Sub 'https://cognito-idp.${AWS::Region}.amazonaws.com/${UserPool}'
+              audience:
+                - !Ref UserPoolClient
+        DefaultAuthorizer: CognitoJwtAuthorizer   
+
+
+          ## INGEST LAMBDA ##
+  IngestFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub 'noise-ingest-${EnvName}'
+      Handler: app.handler
+      CodeUri: src/ingest/
+      Role: !Ref LabRoleArn                       
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref NoiseTable
+      Events:
+        PostMetrics:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref NoiseHttpApi
+            Method: POST
+            Path: /metrics
+        GetHistory:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref NoiseHttpApi
+            Method: GET
+            Path: /history
+
 Outputs:
   Environment:
     Description: Environment name for this stack.
@@ -151,7 +191,7 @@ Outputs:
     Description: DynamoDB table name.
     Value: !Ref NoiseTable
   TableStreamArn:
-    Description: DynamoDB Streams ARN (used by later stages).
+    Description: DynamoDB Streams ARN (to be used later).
     Value: !GetAtt NoiseTable.StreamArn
   BucketName:
     Description: S3 data bucket name.
@@ -165,3 +205,6 @@ Outputs:
   UserPoolIssuerUrl:
     Description: Issuer URL 
     Value: !Sub 'https://cognito-idp.${AWS::Region}.amazonaws.com/${UserPool}'
+  ApiBaseUrl:
+    Description: Base URL of the HTTP API
+    Value: !Sub 'https://${NoiseHttpApi}.execute-api.${AWS::Region}.amazonaws.com'
