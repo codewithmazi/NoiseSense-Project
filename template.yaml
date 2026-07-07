@@ -158,6 +158,7 @@ Resources:
     Properties:
       FunctionName: !Sub 'noise-ingest-${EnvName}'
       Handler: app.handler
+      Runtime: python3.12
       CodeUri: src/ingest/
       Role: !Ref LabRoleArn                       
       Environment:
