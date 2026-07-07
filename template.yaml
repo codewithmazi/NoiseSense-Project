@@ -85,7 +85,9 @@ Resources:
       AutoVerifiedAttributes:
         - email
       AdminCreateUserConfig:
-        AllowAdminCreateUserOnly: true      # users created by admin (CLI) for the POC
+        AllowAdminCreateUserOnly: false     
+      EmailConfiguration:
+        EmailSendingAccount: COGNITO_DEFAULT 
       Policies:
         PasswordPolicy:
           MinimumLength: 8
@@ -99,7 +101,7 @@ Resources:
     Properties:
       ClientName: !Sub 'noise-app-client-${EnvName}'
       UserPoolId: !Ref UserPool
-      GenerateSecret: false                 
+      GenerateSecret: false                
       ExplicitAuthFlows:
         - ALLOW_USER_PASSWORD_AUTH          # lets the seed client get a JWT via username/password
         - ALLOW_REFRESH_TOKEN_AUTH
