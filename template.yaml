@@ -75,7 +75,37 @@ Resources:
           Value: !Ref EnvName
 
 
-          ## PARAMETERS ##
+          ## COGNITO ##
+  UserPool:
+    Type: AWS::Cognito::UserPool
+    Properties:
+      UserPoolName: !Sub 'noise-users-${EnvName}'
+      UsernameAttributes:
+        - email
+      AutoVerifiedAttributes:
+        - email
+      AdminCreateUserConfig:
+        AllowAdminCreateUserOnly: true      # users created by admin (CLI) for the POC
+      Policies:
+        PasswordPolicy:
+          MinimumLength: 8
+          RequireLowercase: true
+          RequireUppercase: true
+          RequireNumbers: true
+          RequireSymbols: false
+
+  UserPoolClient:
+    Type: AWS::Cognito::UserPoolClient
+    Properties:
+      ClientName: !Sub 'noise-app-client-${EnvName}'
+      UserPoolId: !Ref UserPool
+      GenerateSecret: false                 
+      ExplicitAuthFlows:
+        - ALLOW_USER_PASSWORD_AUTH          # lets the seed client get a JWT via username/password
+        - ALLOW_REFRESH_TOKEN_AUTH
+
+
+                  ## PARAMETERS ##
   TableNameParameter:
     Type: AWS::SSM::Parameter
     Properties:
@@ -89,6 +119,22 @@ Resources:
       Name: !Sub '/noise/${EnvName}/bucket-name'
       Type: String
       Value: !Ref DataBucket
+
+  UserPoolIdParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub '/noise/${EnvName}/user-pool-id'
+      Type: String
+      Value: !Ref UserPool
+
+  UserPoolClientIdParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub '/noise/${EnvName}/app-client-id'
+      Type: String
+      Value: !Ref UserPoolClient
+
+
 Outputs:
   Environment:
     Description: Environment name for this stack.
@@ -103,8 +149,17 @@ Outputs:
     Description: DynamoDB table name.
     Value: !Ref NoiseTable
   TableStreamArn:
-    Description: DynamoDB Streams ARN (to be used later).
+    Description: DynamoDB Streams ARN (used by later stages).
     Value: !GetAtt NoiseTable.StreamArn
   BucketName:
     Description: S3 data bucket name.
     Value: !Ref DataBucket
+  UserPoolId:
+    Description: Cognito User Pool ID.
+    Value: !Ref UserPool
+  UserPoolClientId:
+    Description: Cognito User Pool App Client ID.
+    Value: !Ref UserPoolClient
+  UserPoolIssuerUrl:
+    Description: Issuer URL 
+    Value: !Sub 'https://cognito-idp.${AWS::Region}.amazonaws.com/${UserPool}'
