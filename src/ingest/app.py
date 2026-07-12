@@ -87,7 +87,6 @@ def _post_metrics(event, user_id):
         "timestamp": timestamp,
         "dbA": decimal.Decimal(str(db_a)),
     }
-    # Optional fields (numbers stored as Decimal; strings as-is).
     for key in ("laeq", "lat", "long", "source"):
         value = data.get(key)
         if value is None:
@@ -95,6 +94,7 @@ def _post_metrics(event, user_id):
         item[key] = decimal.Decimal(str(value)) if isinstance(value, (int, float)) else value
 
     _table.put_item(Item=item)
+    _publish_event(user_id, timestamp, float(db_a))
     return _response(201, {"message": "stored", "timestamp": timestamp})
 
 
@@ -102,9 +102,10 @@ def _publish_event(user_id, timestamp, db_a):
     """Best-effort: publish a MetricsReceived event. The reading is already stored,
     so a publish failure is logged but does not fail the request."""
     if not EVENT_BUS_NAME:
+        print("WARN: EVENT_BUS_NAME not set; skipping event publish")
         return
     try:
-        _events.put_events(
+        resp = _events.put_events(
             Entries=[
                 {
                     "Source": "noise.ingest",
@@ -116,14 +117,25 @@ def _publish_event(user_id, timestamp, db_a):
                 }
             ]
         )
-    except Exception as exc:  # noqa: BLE001 - best-effort telemetry
+        failed = resp.get("FailedEntryCount", 0)
+        if failed:
+            print(
+                f"WARN: EventBridge rejected {failed} entry/entries: "
+                f"{json.dumps(resp.get('Entries', []))}"
+            )
+        else:
+            print(
+                f"published MetricsReceived (userId={user_id}, dbA={db_a}) "
+                f"to bus {EVENT_BUS_NAME}"
+            )
+    except Exception as exc:  
         print(f"WARN: failed to publish MetricsReceived event: {exc}")
 
 
 def _get_history(user_id):
     result = _table.query(
         KeyConditionExpression=Key("User").eq(f"USER#{user_id}") & Key("Timestamp").begins_with("TS#"),
-        ScanIndexForward=False,  # Gets latest data first
+        ScanIndexForward=False,  # gets latest data first
         Limit=100,
     )
     items = _to_jsonable(result.get("Items", []))
