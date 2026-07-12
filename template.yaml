@@ -22,7 +22,7 @@ Parameters:
   AlertEmail:
     Type: String
     Default: ''
-    Description: Optional email to receive alerts (you must confirm the SNS subscription email).
+    Description: email to receive alerts.
 
 Globals:
   Function:
@@ -268,12 +268,78 @@ Resources:
               Arn: !GetAtt ThresholdDLQ.Arn
 
 
+              ## SAM ##
+  SummaryFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub 'noise-summary-${EnvName}'
+      Handler: app.handler
+      Runtime: python3.12
+      Timeout: 60
+      CodeUri: src/summary/
+      Role: !Ref LabRoleArn
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref NoiseTable
+          BUCKET_NAME: !Ref DataBucket
+
+
+            ## STEP FUNCTION ##
+  WeeklySummaryStateMachine:
+    Type: AWS::Serverless::StateMachine
+    Properties:
+      Name: !Sub 'noise-weekly-summary-${EnvName}'
+      Role: !Ref LabRoleArn                 
+      DefinitionSubstitutions:
+        SummaryFunctionArn: !GetAtt SummaryFunction.Arn
+        AlertsTopicArn: !Ref AlertsTopic
+      Definition:
+        StartAt: ComputeSummary
+        States:
+          ComputeSummary:
+            Type: Task
+            Resource: arn:aws:states:::lambda:invoke
+            Parameters:
+              FunctionName: '${SummaryFunctionArn}'
+              Payload: {}
+            ResultSelector:
+              message.$: $.Payload.message
+            ResultPath: $.summary
+            Retry:
+              - ErrorEquals:
+                  - States.ALL
+                IntervalSeconds: 2
+                MaxAttempts: 3
+                BackoffRate: 2.0
+            Next: PublishSummaryNotification
+          PublishSummaryNotification:
+            Type: Task
+            Resource: arn:aws:states:::sns:publish
+            Parameters:
+              TopicArn: '${AlertsTopicArn}'
+              Subject: Weekly noise exposure summary
+              Message.$: $.summary.message
+            End: true
+
+  ## WEEKLY EVENTBRIDGE TRIGGER ##
+  WeeklySummarySchedule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: !Sub 'noise-weekly-summary-schedule-${EnvName}'
+      ScheduleExpression: rate(7 days)
+      State: ENABLED
+      Targets:
+        - Arn: !Ref WeeklySummaryStateMachine
+          Id: WeeklySummaryTarget
+          RoleArn: !Ref LabRoleArn
+
+
 Outputs:
   Environment:
     Description: Environment name for this stack.
     Value: !Ref EnvName
   LabRoleArnInUse:
-    Description: LabRole ARN configured for execution roles.
+    Description: LabRole ARN.
     Value: !Ref LabRoleArn
   ConfigNamespace:
     Description: SSM Parameter Store namespace for app configurations.
@@ -300,11 +366,14 @@ Outputs:
     Description: Base URL of the HTTP API (POST /metrics, GET /history).
     Value: !Sub 'https://${NoiseHttpApi}.execute-api.${AWS::Region}.amazonaws.com'
   AlertsTopicArn:
-    Description: SNS topic ARN for noise-exposure alerts.
+    Description: SNS topic ARN.
     Value: !Ref AlertsTopic
   EventBusName:
     Description: EventBridge bus name.
     Value: !Ref NoiseEventBus
   ThresholdDlqUrl:
-    Description: SQS dead-letter queue URL for failed threshold events.
+    Description: SQS dead-letter queue URL.
     Value: !Ref ThresholdDLQ
+  StateMachineArn:
+    Description: Step Functions state machine ARN.
+    Value: !Ref WeeklySummaryStateMachine
