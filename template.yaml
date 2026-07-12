@@ -15,9 +15,28 @@ Parameters:
       ARN of the provided LabRole. Used as the execution role for every
       Lambda and Step Functions resource.
     AllowedPattern: '^arn:aws:iam::\d{12}:role/LabRole$'
+  ThresholdDbA:
+    Type: String
+    Default: '70'
+    Description: dB(A) threshold above which a noise-exposure alert is raised.
+  AlertEmail:
+    Type: String
+    Default: ''
+    Description: Optional email to receive alerts (you must confirm the SNS subscription email).
+
+Globals:
+  Function:
+    Runtime: python3.12
+    Timeout: 10
+    MemorySize: 128
+    Architectures:
+      - x86_64
+
+Conditions:
+  HasAlertEmail: !Not [!Equals [!Ref AlertEmail, '']]
 
 Resources:
-  # m
+  ## SSM ##
   AppNameParameter:
     Type: AWS::SSM::Parameter
     Properties:
@@ -164,6 +183,7 @@ Resources:
       Environment:
         Variables:
           TABLE_NAME: !Ref NoiseTable
+          EVENT_BUS_NAME: !Ref NoiseEventBus
       Events:
         PostMetrics:
           Type: HttpApi
@@ -178,6 +198,76 @@ Resources:
             Method: GET
             Path: /history
 
+
+            ## EVENTBRIDGE ##
+  NoiseEventBus:
+    Type: AWS::Events::EventBus
+    Properties:
+      Name: !Sub 'noise-events-${EnvName}'
+
+  AlertsTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: !Sub 'noise-alerts-${EnvName}'
+
+  AlertEmailSubscription:
+    Type: AWS::SNS::Subscription
+    Condition: HasAlertEmail
+    Properties:
+      TopicArn: !Ref AlertsTopic
+      Protocol: email
+      Endpoint: !Ref AlertEmail
+
+
+            ## SQS DLQ ##
+  ThresholdDLQ:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub 'noise-threshold-dlq-${EnvName}'
+      MessageRetentionPeriod: 1209600      # Retention period of 14 days
+
+  ThresholdDLQPolicy:
+    Type: AWS::SQS::QueuePolicy
+    Properties:
+      Queues:
+        - !Ref ThresholdDLQ
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: events.amazonaws.com
+            Action: sqs:SendMessage
+            Resource: !GetAtt ThresholdDLQ.Arn
+
+
+              ## THRESHOLD LAMBDA ##
+  ThresholdFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub 'noise-threshold-${EnvName}'
+      Handler: app.handler
+      Runtime: python3.12
+      CodeUri: src/threshold/
+      Role: !Ref LabRoleArn
+      Environment:
+        Variables:
+          ALERT_TOPIC_ARN: !Ref AlertsTopic
+          THRESHOLD_DBA: !Ref ThresholdDbA
+      Events:
+        MetricsReceived:
+          Type: EventBridgeRule
+          Properties:
+            EventBusName: !Ref NoiseEventBus
+            Pattern:
+              source:
+                - noise.ingest
+              detail-type:
+                - MetricsReceived
+            DeadLetterConfig:
+              Arn: !GetAtt ThresholdDLQ.Arn
+
+
 Outputs:
   Environment:
     Description: Environment name for this stack.
@@ -186,13 +276,13 @@ Outputs:
     Description: LabRole ARN configured for execution roles.
     Value: !Ref LabRoleArn
   ConfigNamespace:
-    Description: SSM Parameter Store namespace for app configuration.
+    Description: SSM Parameter Store namespace for app configurations.
     Value: !Sub '/noise/${EnvName}'
   TableName:
     Description: DynamoDB table name.
     Value: !Ref NoiseTable
   TableStreamArn:
-    Description: DynamoDB Streams ARN (to be used later).
+    Description: DynamoDB Streams ARN.
     Value: !GetAtt NoiseTable.StreamArn
   BucketName:
     Description: S3 data bucket name.
@@ -204,8 +294,17 @@ Outputs:
     Description: Cognito User Pool App Client ID.
     Value: !Ref UserPoolClient
   UserPoolIssuerUrl:
-    Description: Issuer URL 
+    Description: Issuer URL (used by the API Gateway JWT authorizer).
     Value: !Sub 'https://cognito-idp.${AWS::Region}.amazonaws.com/${UserPool}'
   ApiBaseUrl:
-    Description: Base URL of the HTTP API
+    Description: Base URL of the HTTP API (POST /metrics, GET /history).
     Value: !Sub 'https://${NoiseHttpApi}.execute-api.${AWS::Region}.amazonaws.com'
+  AlertsTopicArn:
+    Description: SNS topic ARN for noise-exposure alerts.
+    Value: !Ref AlertsTopic
+  EventBusName:
+    Description: EventBridge bus name.
+    Value: !Ref NoiseEventBus
+  ThresholdDlqUrl:
+    Description: SQS dead-letter queue URL for failed threshold events.
+    Value: !Ref ThresholdDLQ

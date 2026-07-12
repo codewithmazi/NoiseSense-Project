@@ -1,8 +1,6 @@
 name: CI
 
-# Continuous Integration: validate and lint the IaC template on every push/PR.
-# No AWS credentials are needed for linting, so this runs safely without lab secrets.
-# (Continuous Deployment is added in Stage 7 as a separate workflow.)
+# Continuous Integration: To validate and lint the IaC template on every push/PR.
 
 on:
   push:

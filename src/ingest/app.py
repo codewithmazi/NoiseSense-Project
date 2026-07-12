@@ -14,7 +14,10 @@ import boto3
 from boto3.dynamodb.conditions import Key
 
 TABLE_NAME = os.environ["TABLE_NAME"]
+EVENT_BUS_NAME = os.environ.get("EVENT_BUS_NAME")
+
 _table = boto3.resource("dynamodb").Table(TABLE_NAME)
+_events = boto3.client("events")
 
 
 def _response(status, body):
@@ -95,10 +98,32 @@ def _post_metrics(event, user_id):
     return _response(201, {"message": "stored", "timestamp": timestamp})
 
 
+def _publish_event(user_id, timestamp, db_a):
+    """Best-effort: publish a MetricsReceived event. The reading is already stored,
+    so a publish failure is logged but does not fail the request."""
+    if not EVENT_BUS_NAME:
+        return
+    try:
+        _events.put_events(
+            Entries=[
+                {
+                    "Source": "noise.ingest",
+                    "DetailType": "MetricsReceived",
+                    "Detail": json.dumps(
+                        {"userId": user_id, "timestamp": timestamp, "dbA": db_a}
+                    ),
+                    "EventBusName": EVENT_BUS_NAME,
+                }
+            ]
+        )
+    except Exception as exc:  # noqa: BLE001 - best-effort telemetry
+        print(f"WARN: failed to publish MetricsReceived event: {exc}")
+
+
 def _get_history(user_id):
     result = _table.query(
         KeyConditionExpression=Key("User").eq(f"USER#{user_id}") & Key("Timestamp").begins_with("TS#"),
-        ScanIndexForward=False,  # newest first
+        ScanIndexForward=False,  # Gets latest data first
         Limit=100,
     )
     items = _to_jsonable(result.get("Items", []))
