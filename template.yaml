@@ -63,9 +63,11 @@ Resources:
         - AttributeName: Timestamp
           KeyType: RANGE                    # sort key
       StreamSpecification:
-        StreamViewType: NEW_AND_OLD_IMAGES  # enables downstream triggers in later stages
+        StreamViewType: NEW_AND_OLD_IMAGES  # enables downstream triggers
       SSESpecification:
-        SSEEnabled: true                    # encryption at rest (AWS-managed key; maybe CMK later)
+        SSEEnabled: true                    # encryption at rest with the customer-managed KMS key
+        SSEType: KMS
+        KMSMasterKeyId: !Ref NoiseKey       
       Tags:
         - Key: project
           Value: noise-exposure
@@ -86,7 +88,9 @@ Resources:
       BucketEncryption:
         ServerSideEncryptionConfiguration:
           - ServerSideEncryptionByDefault:
-              SSEAlgorithm: AES256          # default encryption at rest
+              SSEAlgorithm: aws:kms         # encryption at rest with the customer-managed KMS key
+              KMSMasterKeyID: !GetAtt NoiseKey.Arn
+            BucketKeyEnabled: true          # to reduce KMS request cost
       Tags:
         - Key: project
           Value: noise-exposure
@@ -334,6 +338,150 @@ Resources:
           RoleArn: !Ref LabRoleArn
 
 
+          ## KMS CUSTOMER KEY ##
+  NoiseKey:
+    Type: AWS::KMS::Key
+    Properties:
+      Description: !Sub 'Customer-managed key for noise-exposure data (${EnvName}).'
+      EnableKeyRotation: true
+      KeyPolicy:
+        Version: '2012-10-17'
+        Id: noise-key-policy
+        Statement:
+          - Sid: EnableRootAccount
+            Effect: Allow
+            Principal:
+              AWS: !Sub 'arn:aws:iam::${AWS::AccountId}:root'
+            Action: 'kms:*'
+            Resource: '*'
+          - Sid: AllowLabRoleUse
+            Effect: Allow
+            Principal:
+              AWS: !Ref LabRoleArn
+            Action:
+              - kms:Encrypt
+              - kms:Decrypt
+              - kms:ReEncrypt*
+              - kms:GenerateDataKey*
+              - kms:DescribeKey
+              - kms:CreateGrant
+            Resource: '*'
+
+  NoiseKeyAlias:
+    Type: AWS::KMS::Alias
+    Properties:
+      AliasName: !Sub 'alias/noise-${EnvName}'
+      TargetKeyId: !Ref NoiseKey
+
+
+        ## CLOUDWATCH ALARMS ##
+  IngestErrorsAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub 'noise-ingest-errors-${EnvName}'
+      AlarmDescription: Ingest Lambda errors detected.
+      Namespace: AWS/Lambda
+      MetricName: Errors
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref IngestFunction
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+      AlarmActions:
+        - !Ref AlertsTopic
+
+  ThresholdErrorsAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub 'noise-threshold-errors-${EnvName}'
+      AlarmDescription: Threshold Lambda errors detected.
+      Namespace: AWS/Lambda
+      MetricName: Errors
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref ThresholdFunction
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+      AlarmActions:
+        - !Ref AlertsTopic
+
+  DlqMessagesAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub 'noise-threshold-dlq-messages-${EnvName}'
+      AlarmDescription: Messages present in the threshold dead-letter queue.
+      Namespace: AWS/SQS
+      MetricName: ApproximateNumberOfMessagesVisible
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt ThresholdDLQ.QueueName
+      Statistic: Maximum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+      AlarmActions:
+        - !Ref AlertsTopic
+
+
+        ## CLOUDWATCH DASHBOARD ##
+  NoiseDashboard:
+    Type: AWS::CloudWatch::Dashboard
+    Properties:
+      DashboardName: !Sub 'noise-exposure-${EnvName}'
+      DashboardBody: !Sub |
+        {
+          "widgets": [
+            {
+              "type": "metric", "x": 0, "y": 0, "width": 12, "height": 6,
+              "properties": {
+                "title": "Lambda Errors",
+                "region": "${AWS::Region}",
+                "stat": "Sum", "period": 300,
+                "metrics": [
+                  ["AWS/Lambda","Errors","FunctionName","${IngestFunction}"],
+                  ["AWS/Lambda","Errors","FunctionName","${ThresholdFunction}"],
+                  ["AWS/Lambda","Errors","FunctionName","${SummaryFunction}"]
+                ]
+              }
+            },
+            {
+              "type": "metric", "x": 12, "y": 0, "width": 12, "height": 6,
+              "properties": {
+                "title": "Lambda Invocations",
+                "region": "${AWS::Region}",
+                "stat": "Sum", "period": 300,
+                "metrics": [
+                  ["AWS/Lambda","Invocations","FunctionName","${IngestFunction}"],
+                  ["AWS/Lambda","Invocations","FunctionName","${ThresholdFunction}"],
+                  ["AWS/Lambda","Invocations","FunctionName","${SummaryFunction}"]
+                ]
+              }
+            },
+            {
+              "type": "metric", "x": 0, "y": 6, "width": 12, "height": 6,
+              "properties": {
+                "title": "Threshold DLQ depth",
+                "region": "${AWS::Region}",
+                "stat": "Maximum", "period": 300,
+                "metrics": [
+                  ["AWS/SQS","ApproximateNumberOfMessagesVisible","QueueName","${ThresholdDLQ.QueueName}"]
+                ]
+              }
+            }
+          ]
+        }
+
+
 Outputs:
   Environment:
     Description: Environment name for this stack.
@@ -372,8 +520,14 @@ Outputs:
     Description: EventBridge bus name.
     Value: !Ref NoiseEventBus
   ThresholdDlqUrl:
-    Description: SQS dead-letter queue URL.
+    Description: SQS dead-letter queue.
     Value: !Ref ThresholdDLQ
   StateMachineArn:
-    Description: Step Functions state machine ARN.
+    Description: Step Functions ARN.
     Value: !Ref WeeklySummaryStateMachine
+  KmsKeyId:
+    Description: Customer-managed KMS key id.
+    Value: !Ref NoiseKey
+  DashboardName:
+    Description: CloudWatch dashboard name.
+    Value: !Ref NoiseDashboard
