@@ -39,7 +39,7 @@ def handler(event, context):
     week_label = now.strftime("%Y-W%W")
 
     # Collects the past week's readings (paginated scan).
-    scan_kwargs = {"FilterExpression": Attr("type").eq("reading") & Attr("Timestamp").gte(cutoff)}
+    scan_kwargs = {"FilterExpression": Attr("type").eq("reading") & Attr("SK").gte(cutoff)}
     readings = []
     resp = _table.scan(**scan_kwargs)
     readings.extend(resp.get("Items", []))
@@ -50,7 +50,7 @@ def handler(event, context):
     # Group readings by user.
     by_user = {}
     for r in readings:
-        by_user.setdefault(r["User"], []).append(float(r.get("dbA", 0)))
+        by_user.setdefault(r["PK"], []).append(float(r.get("dbA", 0)))
 
     summaries = []
     for user, values in by_user.items():
@@ -59,8 +59,8 @@ def handler(event, context):
         risk = _risk_level(avg)
         _table.put_item(
             Item={
-                "User": user,
-                "Timestamp": f"SUMMARY#{week_label}",
+                "PK": user,
+                "SK": f"SUMMARY#{week_label}",
                 "type": "summary",
                 "week": week_label,
                 "count": len(values),

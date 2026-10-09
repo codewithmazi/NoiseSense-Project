@@ -53,14 +53,14 @@ Resources:
       TableName: !Sub 'noise-data-${EnvName}'
       BillingMode: PAY_PER_REQUEST         
       AttributeDefinitions:
-        - AttributeName: User
+        - AttributeName: PK
           AttributeType: S
-        - AttributeName: Timestamp
+        - AttributeName: SK
           AttributeType: S
       KeySchema:
-        - AttributeName: User
+        - AttributeName: PK
           KeyType: HASH                     # partition key
-        - AttributeName: Timestamp
+        - AttributeName: SK
           KeyType: RANGE                    # sort key
       StreamSpecification:
         StreamViewType: NEW_AND_OLD_IMAGES  # enables downstream triggers
@@ -126,6 +126,7 @@ Resources:
       UserPoolId: !Ref UserPool
       GenerateSecret: false                
       ExplicitAuthFlows:
+        - ALLOW_USER_SRP_AUTH #SRP is the flow the Flutter front end client uses: the password never leaves the device.
         - ALLOW_USER_PASSWORD_AUTH          # lets the seed client get a JWT via username/password
         - ALLOW_REFRESH_TOKEN_AUTH
 
@@ -188,6 +189,7 @@ Resources:
         Variables:
           TABLE_NAME: !Ref NoiseTable
           EVENT_BUS_NAME: !Ref NoiseEventBus
+          DEFAULT_THRESHOLD_DBA: !Ref ThresholdDbA   # Fallback only. Each user's own threshold lives in the table at PK=USER#<id>, SK=SETTINGS and takes precedence (603: FR-05).
       Events:
         PostMetrics:
           Type: HttpApi
@@ -201,6 +203,19 @@ Resources:
             ApiId: !Ref NoiseHttpApi
             Method: GET
             Path: /history
+        # 603 FR-05: the threshold is user-configurable rather than a fixed stack-wide value, so it needs its own read/write routes.
+        GetSettings:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref NoiseHttpApi
+            Method: GET
+            Path: /settings
+        PutSettings:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref NoiseHttpApi
+            Method: PUT
+            Path: /settings
 
 
             ## EVENTBRIDGE ##
