@@ -187,13 +187,22 @@ def _publish_event(user_id, timestamp, db_a):
         print(f"WARN: failed to publish MetricsReceived event: {exc}")
 
 
+# Fields a client may see in a history item.
+PUBLIC_READING_FIELDS = ("timestamp", "dbA", "laeq", "classLabel", "confidence", "lat", "long", "source")
+
+
+def _public_reading(item):
+    """Project a stored reading onto its public API representation."""
+    return {key: item[key] for key in PUBLIC_READING_FIELDS if key in item}
+
+
 def _get_history(user_id):
     result = _table.query(
         KeyConditionExpression=Key("PK").eq(f"USER#{user_id}") & Key("SK").begins_with("TS#"),
         ScanIndexForward=False,  # gets latest data first
         Limit=100,
     )
-    items = _to_jsonable(result.get("Items", []))
+    items = [_public_reading(item) for item in _to_jsonable(result.get("Items", []))]
     return _response(200, {"count": len(items), "items": items})
 
 
