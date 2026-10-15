@@ -1,0 +1,126 @@
+# Automated test gate for the NoiseSense front end.
+#
+# This closes a gap declared in the 602 progress report, where CI validated the
+# SAM template with cfn-lint but ran no tests, so nothing stopped a broken
+# commit reaching main. Here the analyser and the full test suite must pass
+# before the build step runs, and the build must succeed before the workflow
+# is green. A failing test is therefore a blocked merge rather than a note in
+# a log.
+#
+# The app lives in noisesense-app/ alongside the back end, so the evidence
+# zip and the repository both present one product. `paths` limits this
+# workflow to changes that can affect the app: a template-only commit does not
+# spend ten minutes building an APK it cannot have changed.
+
+name: Flutter CI
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'noisesense-app/**'
+      - '.github/workflows/flutter-ci.yml'
+  pull_request:
+    paths:
+      - 'noisesense-app/**'
+      - '.github/workflows/flutter-ci.yml'
+
+# Read-only by default. The scan job raises its own permissions, which keeps
+# the elevated grant scoped to the one job that needs it.
+permissions:
+  contents: read
+
+concurrency:
+  # A new push supersedes an in-flight run on the same ref, so the queue does
+  # not fill with results nobody will read.
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: Analyse, test and build
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    # Applies to `run:` steps only. `uses:` steps resolve paths from the
+    # repository root regardless, which is why the artefact path below is
+    # written out in full.
+    defaults:
+      run:
+        working-directory: noisesense-app
+
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      - name: Set up the Java toolchain
+        # Required by the Android Gradle plugin for the build step.
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          # Pinned to the version used locally, not `latest`. An unpinned
+          # toolchain means CI and the developer machine drift apart, and the
+          # first symptom is a failure that cannot be reproduced locally.
+          flutter-version: 3.47.6
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Check formatting
+        # Formatting is enforced mechanically so it never becomes a review
+        # comment. `--set-exit-if-changed` makes this a gate rather than a
+        # silent reformat.
+        run: dart format --output=none --set-exit-if-changed lib test
+
+      - name: Analyse
+        # Fails on warnings and lints, not only on errors, so the codebase
+        # cannot accumulate them.
+        run: flutter analyze --fatal-infos --fatal-warnings
+
+      - name: Run tests
+        run: flutter test --coverage --reporter expanded
+
+      - name: Upload coverage
+        # Kept as a build artefact so the report can cite coverage from a
+        # recorded run rather than from a figure typed out by hand.
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage-lcov
+          path: noisesense-app/coverage/lcov.info
+          if-no-files-found: error
+
+      - name: Build debug APK
+        # Placeholder configuration. The build only needs these to be
+        # non-empty: its purpose is to prove the Android build compiles, not
+        # to reach a particular AWS account. Real values are supplied at
+        # install time, and deliberately never committed, because the Learner
+        # Lab stack is redeployed each session and its identifiers change.
+        run: |
+          flutter build apk --debug \
+            --dart-define=AWS_REGION=eu-west-2 \
+            --dart-define=USER_POOL_ID=ci-placeholder \
+            --dart-define=USER_POOL_CLIENT_ID=ci-placeholder \
+            --dart-define=API_BASE_URL=https://ci.placeholder.invalid
+
+  dependency-scan:
+    name: Dependency vulnerability scan
+    # Addresses the automated dependency scanning owed from the 602 hardening
+    # list. OSV-Scanner reads pubspec.lock against the OSV database, so a
+    # transitive dependency with a published advisory is reported here instead
+    # of being found by a reader of the report.
+    uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable.yml@v2.6.0
+    with:
+      scan-args: |-
+        --lockfile=./noisesense-app/pubspec.lock
+    permissions:
+      # Needed to publish findings to the Security > Code scanning tab.
+      security-events: write
+      contents: read
+      actions: read
