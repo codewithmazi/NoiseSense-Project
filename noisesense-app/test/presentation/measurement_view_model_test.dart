@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:noise_sense/domain/acoustics/background_keep_alive.dart';
 import 'package:noise_sense/domain/acoustics/pcm_source.dart';
 import 'package:noise_sense/domain/models/noise_reading.dart';
 import 'package:noise_sense/presentation/view_models/measurement_view_model.dart';
@@ -29,9 +30,12 @@ class _FakeSource implements PcmSource {
     return controller!.stream;
   }
 
+  void Function()? onStop;
+
   @override
   Future<void> stop() async {
     stops++;
+    onStop?.call();
     await controller?.close();
     controller = null;
   }
@@ -162,4 +166,112 @@ void main() {
     await Future.wait([vm.start(), vm.start()]);
     expect(source.starts, 1);
   });
+
+  group('background measurement', () {
+    late _FakeKeepAlive keepAlive;
+    late MeasurementViewModel bg;
+
+    setUp(() {
+      keepAlive = _FakeKeepAlive();
+      bg = MeasurementViewModel(
+        source: source,
+        onReading: (r) async {
+          received.add(r);
+          return true;
+        },
+        keepAlive: keepAlive,
+        window: const Duration(seconds: 10),
+        clock: () => DateTime.utc(2026, 10, 15, 9),
+      );
+    });
+
+    tearDown(() => bg.dispose());
+
+    test('with the service granted, hiding the app does not stop it', () async {
+      await bg.start();
+      expect(bg.measuresInBackground, isTrue);
+      await bg.onForegroundChanged(inForeground: false);
+      expect(bg.isMeasuring, isTrue);
+      // And readings still arrive while hidden.
+      await source.play(10);
+      await Future<void>.delayed(Duration.zero);
+      expect(received, hasLength(1));
+    });
+
+    test('with the service refused, hiding the app stops it', () async {
+      // The negative case. Carrying on without the service would record
+      // the silence Android hands a background app as falsely quiet minutes.
+      keepAlive.grant = false;
+      await bg.start();
+      expect(bg.measuresInBackground, isFalse);
+      await bg.onForegroundChanged(inForeground: false);
+      expect(bg.isMeasuring, isFalse);
+    });
+
+    test('the service is requested only after microphone permission', () async {
+      // Android 14 throws if a microphone service starts without it.
+      source.permission = false;
+      await bg.start();
+      expect(keepAlive.begins, 0);
+    });
+
+    test('stopping releases the service, after the microphone', () async {
+      await bg.start();
+      await bg.stop();
+      expect(keepAlive.ends, 1);
+      expect(keepAlive.order, ['begin', 'micStop', 'end']);
+    });
+
+    test('a microphone failure also releases the service', () async {
+      // Otherwise the notification would keep claiming to measure.
+      source.failOnStart = true;
+      await bg.start();
+      expect(bg.status, MeasurementStatus.failed);
+      expect(keepAlive.ends, 1);
+    });
+
+    test('Stop on the notification stops measurement in the app', () async {
+      await bg.start();
+      keepAlive.requestStop();
+      await Future<void>.delayed(Duration.zero);
+      await Future<void>.delayed(Duration.zero);
+      expect(bg.isMeasuring, isFalse);
+      expect(keepAlive.ends, 1);
+    });
+
+    test('the service is not ended twice', () async {
+      await bg.start();
+      await bg.stop();
+      await bg.stop();
+      expect(keepAlive.ends, 1);
+    });
+
+    setUp(() => source.onStop = () => keepAlive.order.add('micStop'));
+  });
+}
+
+class _FakeKeepAlive implements BackgroundKeepAlive {
+  bool grant = true;
+  int begins = 0;
+  int ends = 0;
+  final order = <String>[];
+  final _stops = StreamController<void>.broadcast();
+
+  void requestStop() => _stops.add(null);
+
+  @override
+  Future<bool> begin() async {
+    begins++;
+    order.add('begin');
+    return grant;
+  }
+
+  @override
+  Future<void> end() async {
+    ends++;
+    order.add('end');
+  }
+
+  @override
+  Stream<void> get stopRequests => _stops.stream;
 }

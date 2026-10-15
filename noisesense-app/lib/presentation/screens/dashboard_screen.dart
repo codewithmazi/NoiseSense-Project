@@ -1,10 +1,9 @@
-import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
 
-import '../../domain/models/noise_reading.dart';
 import '../theme/app_theme.dart';
 import '../view_models/dashboard_view_model.dart';
+import '../view_models/measurement_view_model.dart';
+import '../widgets/measurement_card.dart';
 import '../widgets/exposure_summary_card.dart';
 import '../widgets/message_banner.dart';
 import '../widgets/reading_tile.dart';
@@ -22,10 +21,12 @@ class DashboardScreen extends StatefulWidget {
   const DashboardScreen({
     super.key,
     required this.viewModel,
+    required this.measurement,
     required this.onSignOut,
   });
 
   final DashboardViewModel viewModel;
+  final MeasurementViewModel measurement;
   final Future<void> Function() onSignOut;
 
   @override
@@ -111,6 +112,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 thresholdDbA: vm.settings?.thresholdDbA,
               ),
               const SizedBox(height: AppTheme.spaceMd),
+              MeasurementCard(viewModel: widget.measurement),
+              const SizedBox(height: AppTheme.spaceMd),
               ThresholdCard(
                 settings: vm.settings,
                 isSaving: vm.isSaving,
@@ -118,8 +121,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
               ),
               const SizedBox(height: AppTheme.spaceLg),
               _HistorySection(viewModel: vm),
-              const SizedBox(height: AppTheme.spaceLg),
-              _MeasurementPlaceholder(viewModel: vm),
             ],
           ],
         );
@@ -182,98 +183,5 @@ class _HistorySection extends StatelessWidget {
           ),
       ],
     );
-  }
-}
-
-/// Temporary control that submits one synthetic reading.
-///
-/// This is scaffolding, not a feature, and it is labelled as such on screen so
-/// a demonstration cannot mistake it for one. It exists because the write path
-/// (sign-in, token, `POST /metrics`, idempotency, history) is complete before
-/// the Week 3 measurement engine is, and being able to exercise it end to end
-/// now is what lets the two be debugged separately rather than together.
-///
-/// It is also useful afterwards: it is the simplest way to put known values
-/// into the system when checking the dose arithmetic against the unit tests'
-/// golden figures on a real device.
-///
-/// It must be removed, or hidden behind a debug flag, before the final build.
-class _MeasurementPlaceholder extends StatelessWidget {
-  const _MeasurementPlaceholder({required this.viewModel});
-
-  final DashboardViewModel viewModel;
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(AppTheme.spaceMd),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Row(
-              children: [
-                Icon(
-                  Icons.construction,
-                  size: 18,
-                  color: AppTheme.onSurfaceMuted,
-                  semanticLabel: '',
-                ),
-                SizedBox(width: AppTheme.spaceSm),
-                Text(
-                  'Development tool',
-                  style: TextStyle(
-                    color: AppTheme.onSurfaceMuted,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 0.5,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: AppTheme.spaceXs),
-            const Text(
-              'Sends one synthetic reading, so the upload path can be tested '
-              'before the microphone engine is built.',
-              style: TextStyle(
-                color: AppTheme.onSurfaceMuted,
-                fontSize: 13,
-                height: 1.4,
-              ),
-            ),
-            const SizedBox(height: AppTheme.spaceSm),
-            Align(
-              alignment: Alignment.centerLeft,
-              child: TextButton.icon(
-                onPressed: () => _submitSynthetic(context),
-                icon: const Icon(Icons.add, size: 20),
-                label: const Text('Add a synthetic reading'),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Future<void> _submitSynthetic(BuildContext context) async {
-    // A plausible urban level, varied so repeated taps do not all land in the
-    // same second and collide on the backend's second-precision sort key.
-    final random = math.Random();
-    final level = 55 + random.nextDouble() * 30;
-    final reading = NoiseReading(
-      timestamp: DateTime.now().toUtc(),
-      dbA: double.parse(level.toStringAsFixed(1)),
-      laeq: double.parse((level - 1.5).toStringAsFixed(1)),
-      classLabel: 'road_traffic',
-      // A deliberately unimpressive confidence: this is a fabricated label,
-      // and a synthetic reading should not look more certain than a real one.
-      confidence: 0.5,
-    );
-
-    final messenger = ScaffoldMessenger.of(context);
-    final sent = await viewModel.submitReading(reading);
-    if (!sent) return; // The view model has already set an error message.
-    messenger.showSnackBar(const SnackBar(content: Text('Reading sent.')));
   }
 }

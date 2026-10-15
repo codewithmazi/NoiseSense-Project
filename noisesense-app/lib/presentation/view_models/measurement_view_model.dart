@@ -3,6 +3,7 @@ import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart';
 
+import '../../domain/acoustics/background_keep_alive.dart';
 import '../../domain/acoustics/level_meter.dart';
 import '../../domain/acoustics/microphone_calibration.dart';
 import '../../domain/acoustics/pcm_source.dart';
@@ -21,23 +22,43 @@ enum MeasurementStatus {
 
 /// Runs live measurement and hands each finished window on as a reading.
 ///
-/// Measurement happens only while the app is in the foreground. Since Android
-/// 9, an app in the background receives silence from the microphone rather
-/// than an error. Carrying on would record a stream of falsely quiet windows,
-/// which would understate exposure: for a health tool, the dangerous direction
-/// to be wrong in. So measuring stops when the app is backgrounded, and the
-/// unfinished window is discarded rather than reported as a short one.
-/// Background measurement needs a foreground service, which is a separate
-/// piece of work.
+/// ## Background measurement
+///
+/// Since Android 9, an app with nothing visible and no foreground service
+/// receives silence from the microphone rather than an error. Recording on
+/// regardless would save a stream of falsely quiet windows and understate
+/// exposure, which for a health tool is the dangerous direction to be wrong
+/// in.
+///
+/// So on start, the view model asks [BackgroundKeepAlive] to hold the app in
+/// the foreground state (an Android foreground service, with a visible
+/// notification). If that is granted, measurement carries on with the screen
+/// off. If it is refused, measurement falls back to foreground-only: it stops
+/// when the app is hidden, and the unfinished window is discarded rather than
+/// reported as a short one. [measuresInBackground] tells the UI which mode is
+/// in force, so the user is never left assuming coverage they do not have.
 class MeasurementViewModel extends ChangeNotifier {
   MeasurementViewModel({
     required this._source,
     required this._onReading,
+    this._keepAlive = const NoBackgroundKeepAlive(),
     MicrophoneCalibration? calibration,
     this.window = const Duration(minutes: 1),
     DateTime Function()? clock,
   }) : calibration = calibration ?? MicrophoneCalibration.androidCddNominal,
-       _clock = clock ?? DateTime.now;
+       _clock = clock ?? DateTime.now {
+    // Stop pressed on the notification, outside the app.
+    _stopRequests = _keepAlive.stopRequests.listen((_) {
+      if (isMeasuring) stop();
+    });
+  }
+
+  final BackgroundKeepAlive _keepAlive;
+  late final StreamSubscription<void> _stopRequests;
+  bool _keepAliveHeld = false;
+
+  /// Whether measurement will continue when the app is not on screen.
+  bool get measuresInBackground => _keepAliveHeld;
 
   final PcmSource _source;
   final Future<bool> Function(NoiseReading reading) _onReading;
@@ -90,6 +111,14 @@ class MeasurementViewModel extends ChangeNotifier {
     }
 
     try {
+      // Requested before capture opens and while the app is visible, which
+      // Android 11+ requires of a microphone foreground service. Android 14+
+      // also requires microphone permission first, granted just above.
+      _keepAliveHeld = await _keepAlive.begin();
+      if (_disposed) {
+        await _release();
+        return;
+      }
       final stream = await _source.start();
       if (_disposed) {
         await _source.stop();
@@ -125,9 +154,10 @@ class MeasurementViewModel extends ChangeNotifier {
     _setStatus(MeasurementStatus.idle);
   }
 
-  /// Called when the app leaves or returns to the foreground.
+  /// Called when the app leaves or returns to the foreground. Measurement
+  /// stops on leaving only if nothing is keeping the microphone live.
   Future<void> onForegroundChanged({required bool inForeground}) async {
-    if (!inForeground && isMeasuring) await stop();
+    if (!inForeground && isMeasuring && !_keepAliveHeld) await stop();
   }
 
   void _onSamples(Int16List samples) {
@@ -176,6 +206,12 @@ class MeasurementViewModel extends ChangeNotifier {
     _subscription = null;
     _meter = null;
     await _source.stop();
+    // Released after the microphone, so the notification never disappears
+    // while capture is still open.
+    if (_keepAliveHeld) {
+      _keepAliveHeld = false;
+      await _keepAlive.end();
+    }
   }
 
   void _setStatus(MeasurementStatus s) {
@@ -190,6 +226,7 @@ class MeasurementViewModel extends ChangeNotifier {
   @override
   void dispose() {
     _disposed = true;
+    unawaited(_stopRequests.cancel());
     // Fire and forget: dispose cannot be async, and the microphone must be
     // released when the user signs out, not left running behind the sign-in
     // screen.

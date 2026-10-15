@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 
 import 'app_config.dart';
 import 'data/api/noise_api_client.dart';
+import 'data/audio/android_measurement_service.dart';
+import 'data/audio/microphone_pcm_source.dart';
 import 'data/auth/cognito_auth_service.dart';
 import 'data/auth/cognito_rest_api.dart';
 import 'data/auth/secure_cognito_storage.dart';
@@ -10,6 +12,7 @@ import 'presentation/app.dart';
 import 'presentation/theme/app_theme.dart';
 import 'presentation/view_models/auth_view_model.dart';
 import 'presentation/view_models/dashboard_view_model.dart';
+import 'presentation/view_models/measurement_view_model.dart';
 
 /// Composition root: the one place where concrete implementations are chosen.
 ///
@@ -63,6 +66,10 @@ void main() {
 
   final auth = AuthViewModel(authService);
 
+  // One instance for the app's lifetime: it owns the platform channel's
+  // handler, and a second instance would silently replace the first.
+  final measurementService = AndroidMeasurementService();
+
   runApp(
     NoiseSenseApp(
       auth: auth,
@@ -71,6 +78,11 @@ void main() {
         // A rejected token ends the session through the auth view model, so
         // the dashboard never has to know what a 401 is.
         onSessionExpired: auth.sessionExpired,
+      ),
+      createMeasurement: (dashboard) => MeasurementViewModel(
+        source: MicrophonePcmSource(),
+        keepAlive: measurementService,
+        onReading: dashboard.submitReading,
       ),
     ),
   );

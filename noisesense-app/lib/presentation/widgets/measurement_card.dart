@@ -92,11 +92,28 @@ class MeasurementCard extends StatelessWidget {
                       fontSize: 13,
                     ),
                   ),
+                  const SizedBox(height: AppTheme.spaceXs),
+                  // States the coverage actually in force. If the phone
+                  // refused background measurement, the user is told now,
+                  // not left to discover a gap in their history later.
+                  Text(
+                    vm.measuresInBackground
+                        ? 'Keeps measuring with the screen off. Stop it here '
+                              'or from the notification.'
+                        : 'Measuring only while NoiseSense is open on '
+                              'screen.',
+                    style: const TextStyle(
+                      color: AppTheme.onSurfaceMuted,
+                      fontSize: 13,
+                      height: 1.4,
+                    ),
+                  ),
                 ] else ...[
                   const SizedBox(height: AppTheme.spaceSm),
                   Text(
-                    'Readings are saved once a minute while the app is open. '
-                    'Sound is analysed on your phone and never recorded.',
+                    'Readings are saved once a minute, including with the '
+                    'screen off. Sound is analysed on your phone and never '
+                    'recorded.',
                     style: const TextStyle(
                       color: AppTheme.onSurfaceMuted,
                       fontSize: 14,

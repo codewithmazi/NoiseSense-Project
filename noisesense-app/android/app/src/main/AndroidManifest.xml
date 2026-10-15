@@ -9,6 +9,20 @@
          it. -->
     <uses-permission android:name="android.permission.INTERNET"/>
 
+    <!-- Microphone access for on-device measurement. Also merged in from the
+         record plugin's manifest; declared here as well so the app's own
+         manifest states every permission it asks the user for, rather than
+         leaving the most privacy-sensitive one implicit in a dependency. -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO"/>
+
+    <!-- Background measurement. FOREGROUND_SERVICE is needed from Android 9,
+         FOREGROUND_SERVICE_MICROPHONE from Android 14, and POST_NOTIFICATIONS
+         from Android 13 so the "measuring" notification can be shown. Each is
+         a normal or runtime permission that older versions simply ignore. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE"/>
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+
     <application
         android:label="NoiseSense"
         android:name="${applicationName}"
@@ -35,6 +49,13 @@
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
         </activity>
+        <!-- Not exported: only this app can start or stop measurement. The
+             microphone type is what Android 11+ checks before granting
+             background microphone access. -->
+        <service
+            android:name=".MeasurementService"
+            android:exported="false"
+            android:foregroundServiceType="microphone" />
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
         <meta-data

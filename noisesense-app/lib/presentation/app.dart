@@ -6,6 +6,7 @@ import 'screens/sign_in_screen.dart';
 import 'theme/app_theme.dart';
 import 'view_models/auth_view_model.dart';
 import 'view_models/dashboard_view_model.dart';
+import 'view_models/measurement_view_model.dart';
 
 /// The application root, and the gate that decides which screen is on display.
 ///
@@ -24,9 +25,16 @@ class NoiseSenseApp extends StatefulWidget {
     super.key,
     required this.auth,
     required this.createDashboard,
+    required this.createMeasurement,
   });
 
   final AuthViewModel auth;
+
+  /// Builds the measurement view model, given the dashboard that finished
+  /// readings are handed to. Created and disposed with the dashboard, so the
+  /// microphone is released on sign-out.
+  final MeasurementViewModel Function(DashboardViewModel dashboard)
+  createMeasurement;
 
   /// Builds the dashboard's view model.
   ///
@@ -42,10 +50,18 @@ class NoiseSenseApp extends StatefulWidget {
 
 class _NoiseSenseAppState extends State<NoiseSenseApp> {
   DashboardViewModel? _dashboard;
+  MeasurementViewModel? _measurement;
+  late final AppLifecycleListener _lifecycle;
 
   @override
   void initState() {
     super.initState();
+    // `onHide` fires when no part of the app is visible. Measuring stops
+    // there, because Android hands a backgrounded app silence instead of
+    // audio (see MeasurementViewModel).
+    _lifecycle = AppLifecycleListener(
+      onHide: () => _measurement?.onForegroundChanged(inForeground: false),
+    );
     widget.auth.addListener(_onAuthChanged);
     // Checks for a stored session. Until it answers, the status is
     // `unknown` and the splash is shown.
@@ -54,7 +70,9 @@ class _NoiseSenseAppState extends State<NoiseSenseApp> {
 
   @override
   void dispose() {
+    _lifecycle.dispose();
     widget.auth.removeListener(_onAuthChanged);
+    _measurement?.dispose();
     _dashboard?.dispose();
     super.dispose();
   }
@@ -62,11 +80,16 @@ class _NoiseSenseAppState extends State<NoiseSenseApp> {
   void _onAuthChanged() {
     final signedIn = widget.auth.status == AuthStatus.signedIn;
     if (signedIn && _dashboard == null) {
-      _dashboard = widget.createDashboard();
+      final dashboard = widget.createDashboard();
+      _dashboard = dashboard;
+      _measurement = widget.createMeasurement(dashboard);
     } else if (!signedIn && _dashboard != null) {
       // Disposed on sign-out, which releases its listeners and drops the
       // readings it held. Keeping it alive would leave one user's data in
-      // memory behind the next user's sign-in screen.
+      // memory behind the next user's sign-in screen. Measurement goes
+      // first, so the microphone is never left running for nobody.
+      _measurement?.dispose();
+      _measurement = null;
       _dashboard!.dispose();
       _dashboard = null;
     }
@@ -97,12 +120,14 @@ class _NoiseSenseAppState extends State<NoiseSenseApp> {
 
   Widget _dashboardOrSplash() {
     final dashboard = _dashboard;
-    // The listener creates the view model before this runs, so the fallback
+    final measurement = _measurement;
+    // The listener creates the view models before this runs, so the fallback
     // is unreachable in practice. It is here so a future reordering degrades
     // to a splash rather than to a null dereference.
-    if (dashboard == null) return const _SplashScreen();
+    if (dashboard == null || measurement == null) return const _SplashScreen();
     return DashboardScreen(
       viewModel: dashboard,
+      measurement: measurement,
       onSignOut: widget.auth.signOut,
     );
   }

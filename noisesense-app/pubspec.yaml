@@ -39,6 +39,7 @@ dependencies:
   http: 1.6.0
   amazon_cognito_identity_dart_2: 4.0.1
   flutter_secure_storage: 11.2.0
+  record: 7.1.2
 
 dev_dependencies:
   flutter_test:
