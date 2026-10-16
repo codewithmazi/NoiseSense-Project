@@ -28,6 +28,14 @@ import 'presentation/view_models/measurement_view_model.dart';
 /// 2016) is structural rather than aspirational: replacing the provider means
 /// supplying different implementations of the same two interfaces here.
 void main() {
+  // Must come first. AndroidMeasurementService registers a platform-channel
+  // handler when it is constructed, below, and that needs the engine bindings.
+  // runApp() would create them, but only after this function has built every
+  // dependency. Leaving this out crashed the first build on the S9+ before
+  // anything was drawn; the unit tests could not catch it because the test
+  // framework always initialises the bindings itself.
+  WidgetsFlutterBinding.ensureInitialized();
+
   const config = AppConfig.fromEnvironment;
 
   // A build without its configuration cannot work, so it says so immediately
