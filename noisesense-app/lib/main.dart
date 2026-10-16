@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:amazon_cognito_identity_dart_2/cognito.dart';
 import 'package:flutter/material.dart';
 
@@ -8,6 +10,9 @@ import 'data/audio/microphone_pcm_source.dart';
 import 'data/auth/cognito_auth_service.dart';
 import 'data/auth/cognito_rest_api.dart';
 import 'data/auth/secure_cognito_storage.dart';
+import 'data/local/deferred_outbox_store.dart';
+import 'data/local/sqlite_outbox_store.dart';
+import 'domain/services/sync_engine.dart';
 import 'presentation/app.dart';
 import 'presentation/theme/app_theme.dart';
 import 'presentation/view_models/auth_view_model.dart';
@@ -81,12 +86,31 @@ void main() {
   runApp(
     NoiseSenseApp(
       auth: auth,
-      createDashboard: () => DashboardViewModel(
-        repository: api,
-        // A rejected token ends the session through the auth view model, so
-        // the dashboard never has to know what a 401 is.
-        onSessionExpired: auth.sessionExpired,
-      ),
+      createDashboard: () {
+        // Built per sign-in and disposed at sign-out, along with the
+        // dashboard, so each user's queue is opened only while they are
+        // signed in.
+        final sync = SyncEngine(
+          store: DeferredOutboxStore(() async {
+            final userId = await authService.currentUserId();
+            if (userId == null) {
+              throw StateError('Outbox opened with nobody signed in');
+            }
+            return SqliteOutboxStore.open(ownerId: userId);
+          }),
+          remote: api,
+        );
+        final dashboard = DashboardViewModel(
+          repository: api,
+          sync: sync,
+          // A rejected token ends the session through the auth view model,
+          // so the dashboard never has to know what a 401 is.
+          onSessionExpired: auth.sessionExpired,
+        );
+        // Sends anything left unsent from a previous session.
+        unawaited(sync.start());
+        return dashboard;
+      },
       createMeasurement: (dashboard) => MeasurementViewModel(
         source: MicrophonePcmSource(),
         keepAlive: measurementService,

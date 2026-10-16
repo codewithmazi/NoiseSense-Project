@@ -15,9 +15,15 @@ class ReadingTile extends StatelessWidget {
     super.key,
     required this.reading,
     required this.thresholdDbA,
+    this.isPending = false,
   });
 
   final NoiseReading reading;
+
+  /// Held on this phone and not yet uploaded. Shown with an icon and in the
+  /// spoken label, so the state is not conveyed by colour alone (WCAG 2.2
+  /// SC 1.4.1).
+  final bool isPending;
 
   /// The user's alert level, used only to mark rows that exceeded it.
   final double? thresholdDbA;
@@ -41,6 +47,7 @@ class ReadingTile extends StatelessWidget {
         if (label != null && confidence != null)
           '${Formatters.confidence(confidence)} confidence',
         if (isOver) 'above your alert level',
+        if (isPending) 'waiting to upload',
       ].join(', '),
       excludeSemantics: true,
       child: Padding(
@@ -92,6 +99,16 @@ class ReadingTile extends StatelessWidget {
                 ],
               ),
             ),
+            if (isPending)
+              const Padding(
+                padding: EdgeInsets.only(right: AppTheme.spaceXs),
+                child: Icon(
+                  Icons.cloud_upload_outlined,
+                  size: 18,
+                  color: AppTheme.onSurfaceMuted,
+                  semanticLabel: '',
+                ),
+              ),
             if (isOver)
               const Icon(
                 Icons.warning_amber_rounded,

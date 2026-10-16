@@ -88,6 +88,9 @@ class _FakeAuthRepository implements AuthRepository {
     calls.add('hasValidSession');
     return sessionValid;
   }
+
+  @override
+  Future<String?> currentUserId() async => sessionValid ? 'user-1' : null;
 }
 
 void main() {

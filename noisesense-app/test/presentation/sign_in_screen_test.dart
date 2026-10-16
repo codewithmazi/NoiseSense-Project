@@ -61,6 +61,9 @@ class _StubAuthRepository implements AuthRepository {
 
   @override
   Future<bool> hasValidSession() async => false;
+
+  @override
+  Future<String?> currentUserId() async => null;
 }
 
 void main() {

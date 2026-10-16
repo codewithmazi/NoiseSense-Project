@@ -6,7 +6,10 @@ import 'package:noise_sense/domain/models/exposure_settings.dart';
 import 'package:noise_sense/domain/models/noise_reading.dart';
 import 'package:noise_sense/domain/repositories/noise_repository.dart';
 import 'package:noise_sense/domain/services/exposure_calculator.dart';
+import 'package:noise_sense/domain/services/sync_engine.dart';
 import 'package:noise_sense/presentation/view_models/dashboard_view_model.dart';
+
+import '../support/memory_outbox_store.dart';
 
 class _FakeNoiseRepository implements NoiseRepository {
   List<NoiseReading> readings = const [];
@@ -69,18 +72,47 @@ class _FakeNoiseRepository implements NoiseRepository {
   }
 }
 
+int _nextMinute = 0;
+
 /// A reading at a fixed local hour, so period penalties are deterministic.
-NoiseReading _reading(double dbA, {int hour = 12}) =>
-    NoiseReading(timestamp: DateTime.utc(2026, 10, 11, hour), dbA: dbA);
+///
+/// Each call gets its own minute unless [minute] is given. Readings are
+/// identified by timestamp, so two readings sharing one would be treated as
+/// the same reading; an earlier version of this helper gave them all 12:00,
+/// which only went unnoticed because nothing merged by timestamp then.
+NoiseReading _reading(double dbA, {int hour = 12, int? minute}) => NoiseReading(
+  timestamp: DateTime.utc(2026, 10, 11, hour, minute ?? (_nextMinute++ % 60)),
+  dbA: dbA,
+);
+
+/// A scheduler that records retries instead of running them, so tests
+/// decide when a retry happens.
+class _ManualScheduler {
+  final delays = <Duration>[];
+  void Function()? pending;
+
+  Timer call(Duration delay, void Function() callback) {
+    delays.add(delay);
+    pending = callback;
+    return Timer(const Duration(days: 365), () {});
+  }
+}
 
 void main() {
   late _FakeNoiseRepository repository;
+  late MemoryOutboxStore outbox;
+  late _ManualScheduler scheduler;
   late int expiryCalls;
   late DashboardViewModel viewModel;
 
   DashboardViewModel build({Duration window = const Duration(minutes: 1)}) =>
       DashboardViewModel(
         repository: repository,
+        sync: SyncEngine(
+          store: outbox,
+          remote: repository,
+          scheduler: scheduler.call,
+        ),
         onSessionExpired: () async => expiryCalls++,
         // The local hour is pinned, so the day/evening/night penalty applied
         // does not depend on the machine's time zone. Without this the same
@@ -92,6 +124,8 @@ void main() {
 
   setUp(() {
     repository = _FakeNoiseRepository();
+    outbox = MemoryOutboxStore();
+    scheduler = _ManualScheduler();
     expiryCalls = 0;
     viewModel = build();
   });
@@ -255,41 +289,50 @@ void main() {
   });
 
   group('submitting a reading', () {
-    test('a stored reading appears immediately without a re-read', () async {
+    test('a reading appears immediately, without a re-read', () async {
       await viewModel.load();
-      final sent = await viewModel.submitReading(_reading(80));
-      expect(sent, isTrue);
+      final saved = await viewModel.submitReading(_reading(80));
+      expect(saved, isTrue);
       expect(viewModel.readings, hasLength(1));
+      await settle();
       // No second history call: DynamoDB reads are eventually consistent, so
       // re-reading could legitimately omit the write that just succeeded.
       expect(repository.calls.where((c) => c == 'history').length, 1);
     });
 
-    test('the newest reading is placed first', () async {
-      repository.readings = [_reading(60)];
+    test('it is uploaded, then no longer marked as waiting', () async {
       await viewModel.load();
-      await viewModel.submitReading(_reading(90));
+      final r = _reading(80);
+      await viewModel.submitReading(r);
+      await settle();
+      expect(repository.lastReadingSent, r);
+      expect(viewModel.isPending(r), isFalse);
+      expect(outbox.entryAt(r.timestamp), isNull);
+    });
+
+    test('the newest reading is placed first', () async {
+      repository.readings = [_reading(60, minute: 0)];
+      await viewModel.load();
+      await viewModel.submitReading(_reading(90, minute: 5));
       expect(viewModel.readings.first.dbA, 90);
     });
 
-    test(
-      'a duplicate counts as success, because the data is already safe',
-      () async {
-        // The offline replay path depends on this. Treating a duplicate as a
-        // failure would make correct behaviour look broken (FR-06).
-        await viewModel.load();
-        repository.submitOutcome = SubmitOutcome.duplicate;
-        final sent = await viewModel.submitReading(_reading(80));
-        expect(sent, isTrue);
-        expect(viewModel.errorMessage, isNull);
-      },
-    );
-
-    test('a duplicate is not added to the list a second time', () async {
-      repository.readings = [_reading(60)];
+    test('a duplicate counts as success, because the data is safe', () async {
+      // The offline replay path depends on this (FR-06).
       await viewModel.load();
       repository.submitOutcome = SubmitOutcome.duplicate;
-      await viewModel.submitReading(_reading(60));
+      final r = _reading(80);
+      expect(await viewModel.submitReading(r), isTrue);
+      await settle();
+      expect(viewModel.errorMessage, isNull);
+      expect(outbox.entryAt(r.timestamp), isNull);
+    });
+
+    test('a reading already in history is not listed twice', () async {
+      final r = _reading(60);
+      repository.readings = [r];
+      await viewModel.load();
+      await viewModel.submitReading(r);
       expect(viewModel.readings, hasLength(1));
     });
 
@@ -299,6 +342,65 @@ void main() {
       final before = viewModel.dose!.levelDb;
       await viewModel.submitReading(_reading(90));
       expect(viewModel.dose!.levelDb, greaterThan(before));
+    });
+  });
+
+  group('offline', () {
+    test(
+      'a reading measured offline is kept, shown, and marked waiting',
+      () async {
+        // The case the outbox exists for. Before it, this reading was lost.
+        await viewModel.load();
+        repository.submitError = const ServiceUnavailableException('no signal');
+        final r = _reading(75);
+        final saved = await viewModel.submitReading(r);
+        await settle();
+
+        expect(
+          saved,
+          isTrue,
+          reason: 'saved on the phone, which is what counts',
+        );
+        expect(viewModel.readings, contains(r));
+        expect(viewModel.isPending(r), isTrue);
+        expect(viewModel.syncStatus.pendingCount, 1);
+        expect(viewModel.syncStatus.retryAt, isNotNull);
+        // No error banner: nothing is wrong that the user needs to act on.
+        expect(viewModel.errorMessage, isNull);
+      },
+    );
+
+    test('the waiting reading is sent once the network is back', () async {
+      await viewModel.load();
+      repository.submitError = const ServiceUnavailableException('no signal');
+      final r = _reading(75);
+      await viewModel.submitReading(r);
+      await settle();
+
+      repository.submitError = null;
+      scheduler.pending!(); // the scheduled retry fires
+      await settle();
+      expect(viewModel.isPending(r), isFalse);
+      expect(viewModel.syncStatus.pendingCount, 0);
+    });
+
+    test(
+      'unsent readings from before are shown even if history fails',
+      () async {
+        // Opening the app underground must still show what was measured.
+        final r = _reading(66);
+        await outbox.add(r);
+        repository.historyError = const ServiceUnavailableException('offline');
+        await viewModel.load();
+        expect(viewModel.readings, contains(r));
+      },
+    );
+
+    test('a reading the phone cannot store is reported as lost', () async {
+      outbox.addError = Exception('disk full');
+      final saved = await viewModel.submitReading(_reading(70));
+      expect(saved, isFalse);
+      expect(viewModel.errorMessage, contains('storage'));
     });
   });
 
@@ -315,13 +417,20 @@ void main() {
       },
     );
 
-    test('a rejected token on submit also ends the session', () async {
-      await viewModel.load();
-      repository.submitError = const UnauthorisedException('Not signed in');
-      final sent = await viewModel.submitReading(_reading(80));
-      expect(sent, isFalse);
-      expect(expiryCalls, 1);
-    });
+    test(
+      'a rejected token during upload ends the session but keeps the reading',
+      () async {
+        await viewModel.load();
+        repository.submitError = const UnauthorisedException('Not signed in');
+        final r = _reading(80);
+        final saved = await viewModel.submitReading(r);
+        await settle();
+        expect(saved, isTrue);
+        expect(expiryCalls, 1);
+        // Still on the phone, to be sent after the user signs back in.
+        expect(outbox.entryAt(r.timestamp), isNotNull);
+      },
+    );
 
     test('an ordinary failure does not end the session', () async {
       // The negative case. If every error signed the user out, a single

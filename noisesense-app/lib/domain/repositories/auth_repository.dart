@@ -54,4 +54,8 @@ abstract interface class AuthRepository {
   /// Used at startup to decide between the sign-in screen and the dashboard,
   /// so a returning user is not asked to sign in again.
   Future<bool> hasValidSession();
+
+  /// A stable, opaque identifier for the signed-in user, or null when signed
+  /// out. Used to keep each user's on-device data apart; it is never shown.
+  Future<String?> currentUserId();
 }

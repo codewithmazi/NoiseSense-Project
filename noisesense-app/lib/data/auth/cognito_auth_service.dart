@@ -100,6 +100,15 @@ class CognitoAuthService implements AuthRepository, TokenProvider {
 
   // ------------------------------------------------------------ TokenProvider
 
+  /// The Cognito subject (`sub`) from the access token: a UUID that never
+  /// changes for the account, unlike the email address, which a user can
+  /// change. The token was issued to this device by Cognito, so its payload is
+  /// read without re-verifying the signature; it is only used as a local
+  /// storage key, never to authorise anything.
+  @override
+  Future<String?> currentUserId() async =>
+      (await _session())?.getAccessToken().getSub();
+
   @override
   Future<String?> bearerToken() async {
     final session = await _session();

@@ -61,6 +61,9 @@ class _NoiseSenseAppState extends State<NoiseSenseApp> {
     // audio (see MeasurementViewModel).
     _lifecycle = AppLifecycleListener(
       onHide: () => _measurement?.onForegroundChanged(inForeground: false),
+      // Returning to the app is a natural moment to retry uploads: the user
+      // may have walked back into signal, and is about to look at the result.
+      onResume: () => _dashboard?.syncNow(),
     );
     widget.auth.addListener(_onAuthChanged);
     // Checks for a stored session. Until it answers, the status is

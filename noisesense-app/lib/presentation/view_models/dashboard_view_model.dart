@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 
 import '../../domain/errors.dart';
@@ -5,6 +7,7 @@ import '../../domain/models/exposure_settings.dart';
 import '../../domain/models/noise_reading.dart';
 import '../../domain/repositories/noise_repository.dart';
 import '../../domain/services/exposure_calculator.dart';
+import '../../domain/services/sync_engine.dart';
 import '../error_text.dart';
 
 /// Presentation state for the exposure dashboard.
@@ -18,12 +21,28 @@ class DashboardViewModel extends ChangeNotifier {
   /// while the fields themselves stay private to this class.
   DashboardViewModel({
     required this._repository,
+    required this._sync,
     required this._onSessionExpired,
     this._calculator = const ExposureCalculator(),
     this.measurementWindow = const Duration(minutes: 1),
-  });
+  }) {
+    _syncSubscription = _sync.statusChanges.listen(_onSyncStatus);
+  }
 
   final NoiseRepository _repository;
+
+  /// Every new reading goes through this, never straight to the API, so a
+  /// reading measured with no signal is kept and sent later rather than lost.
+  final SyncEngine _sync;
+  late final StreamSubscription<SyncStatus> _syncSubscription;
+  bool _expiryReported = false;
+
+  /// Upload state, for the "waiting to upload" indicators.
+  SyncStatus get syncStatus => _sync.status;
+
+  /// Whether [reading] is held on the device and not yet on the service.
+  bool isPending(NoiseReading reading) =>
+      _sync.status.pendingTimestamps.contains(reading.timestamp);
   final ExposureCalculator _calculator;
 
   /// What the app does when the service rejects the stored token.
@@ -96,14 +115,21 @@ class DashboardViewModel extends ChangeNotifier {
     _errorMessage = null;
     notifyListeners();
 
+    // Readings still on the device are shown even if the service cannot be
+    // reached, so an offline user still sees what they have measured.
+    _mergeReadings(await _sync.unsyncedReadings());
+    _recomputeDose();
+
     try {
       final results = await Future.wait([
         _repository.history(),
         _repository.settings(),
       ]);
-      _readings = results[0] as List<NoiseReading>;
+      _mergeReadings(results[0] as List<NoiseReading>);
       _settings = results[1] as ExposureSettings;
       _recomputeDose();
+      // A good moment to retry: the service has just answered.
+      unawaited(_sync.flush());
     } on NoiseSenseException catch (error) {
       await _handle(error);
     } finally {
@@ -137,32 +163,66 @@ class DashboardViewModel extends ChangeNotifier {
     return saved;
   }
 
-  /// Sends one reading and folds it into the local view on success.
+  /// Keeps a new reading and shows it at once; uploading happens behind it.
   ///
-  /// A [SubmitOutcome.duplicate] is treated as success, because that is what
-  /// it means: the service already holds this reading, so the user's data is
-  /// safe. Reporting it as a failure would make the offline replay path look
-  /// broken precisely when it is working (603: FR-06).
+  /// Returns true once the reading is safe on the device, which no longer
+  /// depends on the network. It returns false only if local storage itself
+  /// fails, the one case in which the reading really is lost.
   ///
-  /// The accepted reading is inserted locally rather than triggering a reload.
-  /// DynamoDB reads are eventually consistent, so an immediate re-read can
-  /// legitimately omit the write that just succeeded. Trusting the 201 instead
-  /// avoids showing the user their own reading disappearing and reappearing.
-  /// Experiment M3 measures how often that staleness actually occurs.
+  /// The reading is shown immediately rather than after a reload. DynamoDB
+  /// reads are eventually consistent, so re-reading straight after a write
+  /// can legitimately omit it; experiment M3 measures how often. Showing the
+  /// local copy avoids a reading appearing, vanishing and reappearing.
   Future<bool> submitReading(NoiseReading reading) async {
     try {
-      final outcome = await _repository.submit(reading);
-      if (outcome == SubmitOutcome.stored) {
-        _readings = [reading, ..._readings];
-        _recomputeDose();
-        notifyListeners();
-      }
-      return true;
-    } on NoiseSenseException catch (error) {
-      await _handle(error);
+      await _sync.enqueue(reading);
+    } on Exception {
+      _errorMessage =
+          'A reading could not be saved on this phone. Check it has free '
+          'storage space.';
       notifyListeners();
       return false;
     }
+    _mergeReadings([reading]);
+    _recomputeDose();
+    notifyListeners();
+    return true;
+  }
+
+  /// Retries uploads now, for example when the app returns to the screen.
+  Future<void> syncNow() => _sync.flush();
+
+  /// Combines [incoming] with what is already shown, one entry per timestamp,
+  /// newest first.
+  ///
+  /// A union rather than a replacement, so a reading the user has already
+  /// seen never disappears because an eventually consistent read briefly
+  /// omitted it. Timestamps are the identity because the backend uses them
+  /// as the key too, so the same reading from two sources is one entry.
+  void _mergeReadings(List<NoiseReading> incoming) {
+    final byTime = {for (final r in _readings) r.timestamp: r};
+    for (final r in incoming) {
+      byTime.putIfAbsent(r.timestamp, () => r);
+    }
+    _readings = byTime.values.toList()
+      ..sort((a, b) => b.timestamp.compareTo(a.timestamp));
+  }
+
+  void _onSyncStatus(SyncStatus status) {
+    if (status.needsSignIn && !_expiryReported) {
+      // Pending readings stay in this user's outbox and are sent after they
+      // sign back in.
+      _expiryReported = true;
+      unawaited(_onSessionExpired());
+    }
+    notifyListeners();
+  }
+
+  @override
+  void dispose() {
+    unawaited(_syncSubscription.cancel());
+    unawaited(_sync.dispose());
+    super.dispose();
   }
 
   void clearError() {

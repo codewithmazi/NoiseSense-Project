@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../domain/services/sync_engine.dart';
 import '../theme/app_theme.dart';
 import '../view_models/dashboard_view_model.dart';
 import '../view_models/measurement_view_model.dart';
@@ -150,6 +151,7 @@ class _HistorySection extends StatelessWidget {
             fontWeight: FontWeight.w700,
           ),
         ),
+        _SyncLine(status: viewModel.syncStatus),
         const SizedBox(height: AppTheme.spaceSm),
         if (readings.isEmpty)
           const Text(
@@ -175,6 +177,7 @@ class _HistorySection extends StatelessWidget {
                     ReadingTile(
                       reading: readings[i],
                       thresholdDbA: viewModel.settings?.thresholdDbA,
+                      isPending: viewModel.isPending(readings[i]),
                     ),
                   ],
                 ],
@@ -182,6 +185,67 @@ class _HistorySection extends StatelessWidget {
             ),
           ),
       ],
+    );
+  }
+}
+
+/// One line of upload state under the history heading.
+///
+/// Silent when everything is uploaded, because "all synced" on every visit is
+/// noise. When something is waiting it says how many and what happens next,
+/// so a user who measured underground is told their readings are safe rather
+/// than left to wonder why history looks short (Nielsen, 1994: visibility of
+/// system status).
+class _SyncLine extends StatelessWidget {
+  const _SyncLine({required this.status});
+
+  final SyncStatus status;
+
+  @override
+  Widget build(BuildContext context) {
+    final parts = <String>[
+      if (status.pendingCount > 0)
+        '${status.pendingCount} '
+            '${status.pendingCount == 1 ? 'reading' : 'readings'} saved on '
+            'this phone, waiting to upload',
+      if (status.isSyncing && status.pendingCount > 0) 'uploading now',
+      if (!status.isSyncing && status.retryAt != null)
+        'will retry automatically',
+      if (status.rejectedCount > 0)
+        '${status.rejectedCount} refused by the server and kept on this phone',
+    ];
+    if (parts.isEmpty) return const SizedBox.shrink();
+
+    return Padding(
+      padding: const EdgeInsets.only(top: AppTheme.spaceXs),
+      child: Semantics(
+        liveRegion: true,
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Padding(
+              padding: EdgeInsets.only(top: 1),
+              child: Icon(
+                Icons.cloud_upload_outlined,
+                size: 16,
+                color: AppTheme.onSurfaceMuted,
+                semanticLabel: '',
+              ),
+            ),
+            const SizedBox(width: AppTheme.spaceXs),
+            Expanded(
+              child: Text(
+                '${parts.join(', ')}.',
+                style: const TextStyle(
+                  color: AppTheme.onSurfaceMuted,
+                  fontSize: 13,
+                  height: 1.4,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
