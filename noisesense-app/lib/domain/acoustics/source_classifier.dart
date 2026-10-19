@@ -30,7 +30,22 @@ class SourceClassification {
     required this.label,
     required this.confidence,
     required this.framesClassified,
+    this.framesDropped = 0,
+    this.topLabels = const [],
+    this.meanInference = Duration.zero,
   });
+
+  /// Frames lost this window because the model was still busy or failed.
+  final int framesDropped;
+
+  /// The model's five highest mean label scores for the window, for
+  /// diagnosis: label names and numbers only, never audio. Added after the
+  /// first on-device test labelled every window "other", to show what the
+  /// model actually heard.
+  final List<(String, double)> topLabels;
+
+  /// Mean time per inference this window, which experiment M8 also needs.
+  final Duration meanInference;
 
   /// One of [SourceCategoryMap.categoryNames], or `other`.
   final String label;
@@ -134,6 +149,9 @@ class WindowClassifier {
   bool _busy = false;
 
   final Map<String, double> _totals = {};
+  Float64List? _labelTotals;
+  int _windowDropped = 0;
+  int _inferenceMicros = 0;
   int _frames = 0;
   int _dropped = 0;
   bool enabled = true;
@@ -158,6 +176,7 @@ class WindowClassifier {
         _filled = 0;
         if (_busy) {
           _dropped++;
+          _windowDropped++;
         } else {
           unawaited(_score(Float32List.fromList(_frame)));
         }
@@ -167,15 +186,22 @@ class WindowClassifier {
 
   Future<void> _score(Float32List frame) async {
     _busy = true;
+    final timer = Stopwatch()..start();
     try {
       final scores = await model.score(frame);
+      _inferenceMicros += timer.elapsedMicroseconds;
       categories.categoryScores(scores).forEach((name, s) {
         _totals[name] = (_totals[name] ?? 0) + s;
       });
+      final totals = _labelTotals ??= Float64List(scores.length);
+      for (var i = 0; i < scores.length; i++) {
+        totals[i] += scores[i];
+      }
       _frames++;
     } on Exception {
       // A failed inference loses one frame's opinion, not the measurement.
       _dropped++;
+      _windowDropped++;
     } finally {
       // The copy handed to the model is released here; nothing keeps it.
       _busy = false;
@@ -203,23 +229,33 @@ class WindowClassifier {
         bestMean = mean;
       }
     });
-    final result = bestMean >= categories.minScore
-        ? SourceClassification(
-            label: best,
-            confidence: bestMean,
-            framesClassified: _frames,
-          )
-        : SourceClassification(
-            label: 'other',
-            confidence: null,
-            framesClassified: _frames,
-          );
+    final labelTotals = _labelTotals;
+    final top = <(String, double)>[];
+    if (labelTotals != null) {
+      final order = List<int>.generate(labelTotals.length, (i) => i)
+        ..sort((a, b) => labelTotals[b].compareTo(labelTotals[a]));
+      for (final i in order.take(5)) {
+        top.add((model.labels[i], labelTotals[i] / _frames));
+      }
+    }
+    final claimed = bestMean >= categories.minScore;
+    final result = SourceClassification(
+      label: claimed ? best : 'other',
+      confidence: claimed ? bestMean : null,
+      framesClassified: _frames,
+      framesDropped: _windowDropped,
+      topLabels: top,
+      meanInference: Duration(microseconds: _inferenceMicros ~/ _frames),
+    );
     _reset();
     return result;
   }
 
   void _reset() {
     _totals.clear();
+    _labelTotals?.fillRange(0, _labelTotals!.length, 0);
+    _windowDropped = 0;
+    _inferenceMicros = 0;
     _frames = 0;
   }
 

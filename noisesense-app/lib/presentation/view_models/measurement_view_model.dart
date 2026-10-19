@@ -236,7 +236,21 @@ class MeasurementViewModel extends ChangeNotifier {
       // Taken synchronously as the window closes, so the next window's
       // frames start a fresh tally.
       final source = _classifier?.takeWindow();
-      if (source != null) _lastSource = source;
+      if (source != null) {
+        _lastSource = source;
+        // Debug builds only; stripped from release. Label names and numbers,
+        // never audio, so nothing private reaches the log.
+        if (kDebugMode) {
+          debugPrint(
+            'NS-CLASSIFY ${w.start.toIso8601String()} '
+            'laeq=${w.laeqDb.toStringAsFixed(1)} -> ${source.label} '
+            '${source.confidence?.toStringAsFixed(2) ?? '-'} | '
+            'frames=${source.framesClassified} dropped=${source.framesDropped} '
+            'infer=${source.meanInference.inMilliseconds}ms | top: '
+            '${source.topLabels.map((t) => '${t.$1}=${t.$2.toStringAsFixed(2)}').join(', ')}',
+          );
+        }
+      }
       _submit(w, source);
     }
     if (out.liveLevelsDb.isNotEmpty || out.windows.isNotEmpty) {
