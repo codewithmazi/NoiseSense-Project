@@ -2,8 +2,11 @@ import 'dart:async';
 
 import 'package:amazon_cognito_identity_dart_2/cognito.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import 'app_config.dart';
+import 'data/ml/yamnet_model.dart';
+import 'domain/acoustics/source_classifier.dart';
 import 'data/api/noise_api_client.dart';
 import 'data/audio/android_measurement_service.dart';
 import 'data/audio/microphone_pcm_source.dart';
@@ -114,6 +117,16 @@ void main() {
       createMeasurement: (dashboard) => MeasurementViewModel(
         source: MicrophonePcmSource(),
         keepAlive: measurementService,
+        loadClassifier: () async {
+          final model = await YamnetModel.load();
+          final mapping = await rootBundle.loadString(
+            'assets/models/source_categories.json',
+          );
+          return WindowClassifier(
+            model: model,
+            categories: SourceCategoryMap.parse(mapping, model.labels),
+          );
+        },
         onReading: dashboard.submitReading,
       ),
     ),

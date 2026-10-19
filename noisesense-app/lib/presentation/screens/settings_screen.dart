@@ -11,10 +11,9 @@ import '../widgets/threshold_card.dart';
 
 /// Tab 4, "Settings", after the wireframe.
 ///
-/// Two of the wireframe's toggles are not shown: "Threshold alerts", because
-/// push alerts are not built, and "Classify noise source", because the
-/// classifier is not built yet. A switch that does nothing is worse than no
-/// switch: it tells the user they are in control of something they are not.
+/// The wireframe's "Threshold alerts" toggle is not shown, because push
+/// alerts are not built. A switch that does nothing is worse than no switch:
+/// it tells the user they are in control of something they are not.
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({
     super.key,
@@ -98,6 +97,25 @@ class SettingsScreen extends StatelessWidget {
                 subtitle: const Text(
                   'Keep measuring with the screen off. A notification shows '
                   'while it runs.',
+                  style: TextStyle(
+                    color: AppTheme.onSurfaceMuted,
+                    fontSize: 13,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: AppTheme.spaceSm),
+            Card(
+              child: SwitchListTile(
+                value: measurement.classificationEnabled,
+                onChanged: measurement.setClassificationEnabled,
+                title: const Text(
+                  'Classify noise source',
+                  style: TextStyle(color: AppTheme.onSurface, fontSize: 16),
+                ),
+                subtitle: const Text(
+                  'Label each minute as traffic, speech, construction or '
+                  'other, on this phone. Uses more battery.',
                   style: TextStyle(
                     color: AppTheme.onSurfaceMuted,
                     fontSize: 13,

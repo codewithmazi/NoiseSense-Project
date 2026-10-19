@@ -1,10 +1,12 @@
 import 'dart:async';
+import 'dart:io';
 import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:noise_sense/domain/acoustics/background_keep_alive.dart';
 import 'package:noise_sense/domain/acoustics/pcm_source.dart';
+import 'package:noise_sense/domain/acoustics/source_classifier.dart';
 import 'package:noise_sense/domain/models/noise_reading.dart';
 import 'package:noise_sense/presentation/view_models/measurement_view_model.dart';
 
@@ -167,6 +169,70 @@ void main() {
     expect(source.starts, 1);
   });
 
+  group('source classification', () {
+    final labels = File('assets/models/yamnet_labels.txt')
+        .readAsLinesSync()
+        .where((l) => l.isNotEmpty)
+        .toList();
+    final mapping = File('assets/models/source_categories.json')
+        .readAsStringSync();
+
+    MeasurementViewModel withModel(Future<WindowClassifier> Function() load) =>
+        MeasurementViewModel(
+          source: source,
+          onReading: (r) async {
+            received.add(r);
+            return true;
+          },
+          window: const Duration(seconds: 10),
+          clock: () => DateTime.utc(2026, 10, 15, 9),
+          loadClassifier: load,
+        );
+
+    test('each reading carries the window\u2019s source and score', () async {
+      final m = withModel(
+        () async => WindowClassifier(
+          model: _FixedModel(labels, 'Car', 0.874),
+          categories: SourceCategoryMap.parse(mapping, labels),
+        ),
+      );
+      await m.start();
+      await source.play(10);
+      await Future<void>.delayed(Duration.zero);
+      expect(received.single.classLabel, 'road_traffic');
+      expect(received.single.confidence, 0.87, reason: 'rounded to 2 dp');
+      expect(m.lastSource!.label, 'road_traffic');
+      m.dispose();
+    });
+
+    test('a model that fails to load does not stop measurement', () async {
+      final m = withModel(() async => throw Exception('no model'));
+      await m.start();
+      expect(m.isMeasuring, isTrue);
+      expect(m.classifierAvailable, isFalse);
+      await source.play(10);
+      await Future<void>.delayed(Duration.zero);
+      expect(received.single.classLabel, isNull);
+      expect(received.single.laeq, isNotNull);
+      m.dispose();
+    });
+
+    test('switched off in Settings, readings carry no source', () async {
+      final m = withModel(
+        () async => WindowClassifier(
+          model: _FixedModel(labels, 'Speech', 0.9),
+          categories: SourceCategoryMap.parse(mapping, labels),
+        ),
+      );
+      m.setClassificationEnabled(false);
+      await m.start();
+      await source.play(10);
+      await Future<void>.delayed(Duration.zero);
+      expect(received.single.classLabel, isNull);
+      m.dispose();
+    });
+  });
+
   group('background measurement', () {
     late _FakeKeepAlive keepAlive;
     late MeasurementViewModel bg;
@@ -276,6 +342,21 @@ void main() {
 
     setUp(() => source.onStop = () => keepAlive.order.add('micStop'));
   });
+}
+
+class _FixedModel implements ScoreModel {
+  _FixedModel(this.labels, this.label, this.score_);
+  @override
+  final List<String> labels;
+  final String label;
+  final double score_;
+  @override
+  int get frameLength => 15600;
+  @override
+  Future<Float32List> score(Float32List frame) async =>
+      Float32List(labels.length)..[labels.indexOf(label)] = score_;
+  @override
+  Future<void> close() async {}
 }
 
 class _FakeKeepAlive implements BackgroundKeepAlive {

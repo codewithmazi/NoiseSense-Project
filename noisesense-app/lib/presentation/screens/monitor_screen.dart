@@ -63,6 +63,11 @@ class MonitorScreen extends StatelessWidget {
               const SizedBox(height: AppTheme.spaceMd),
             ],
             LevelGauge(levelDb: gaugeLevel, limitDb: limit, caption: caption),
+            _SourceChip(
+              measurement: m,
+              latestLabel: latest?.classLabel,
+              latestConfidence: latest?.confidence,
+            ),
             if (m.isMeasuring) ...[
               const SizedBox(height: AppTheme.spaceMd),
               _WindowProgress(measurement: m),
@@ -186,6 +191,68 @@ class _WindowProgress extends StatelessWidget {
           style: const TextStyle(color: AppTheme.onSurfaceMuted, fontSize: 13),
         ),
       ],
+    );
+  }
+}
+
+/// The wireframe's "Source: Road traffic 87%" chip.
+///
+/// Shows the last completed minute's source, so it changes once a minute,
+/// not every second: the label describes a whole window, and a label that
+/// flickered would imply a precision the classifier does not have. The
+/// confidence is always shown with it, and "Other" is shown without one,
+/// because "nothing recognised" has no score to report.
+class _SourceChip extends StatelessWidget {
+  const _SourceChip({
+    required this.measurement,
+    required this.latestLabel,
+    required this.latestConfidence,
+  });
+
+  final MeasurementViewModel measurement;
+  final String? latestLabel;
+  final double? latestConfidence;
+
+  @override
+  Widget build(BuildContext context) {
+    final live = measurement.lastSource;
+    final label = live?.label ?? latestLabel;
+    final confidence = live == null ? latestConfidence : live.confidence;
+    if (label == null) return const SizedBox.shrink();
+
+    final text = confidence == null
+        ? 'Source: ${Formatters.classLabel(label)}'
+        : 'Source: ${Formatters.classLabel(label)} '
+              '${Formatters.confidence(confidence)}';
+    return Padding(
+      padding: const EdgeInsets.only(top: AppTheme.spaceMd),
+      child: Center(
+        child: Semantics(
+          label: confidence == null
+              ? 'Main noise source: ${Formatters.classLabel(label)}'
+              : 'Main noise source: ${Formatters.classLabel(label)}, model '
+                    'score ${Formatters.confidence(confidence)}',
+          excludeSemantics: true,
+          child: Container(
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppTheme.spaceMd,
+              vertical: AppTheme.spaceXs + 2,
+            ),
+            decoration: const ShapeDecoration(
+              color: AppTheme.primary,
+              shape: StadiumBorder(),
+            ),
+            child: Text(
+              text,
+              style: const TextStyle(
+                color: AppTheme.onPrimary,
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

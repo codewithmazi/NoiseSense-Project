@@ -1,0 +1,63 @@
+{
+  "_comment": "Maps YAMNet's AudioSet labels onto NoiseSense's four noise sources. Single source of truth: the app reads it at runtime and the M7 evaluation script reads the same file, so the evaluated mapping is the shipped mapping. Every name must appear exactly in yamnet_labels.txt; a unit test enforces that. Labels not listed here count towards 'other'.",
+  "model": "MediaPipe YAMNet float32, sha256 4D8B4A53282DC83EF04E3E7DBC4FBC98082E34E44ED798E16C3A0CDD4C584FAF",
+  "min_score": 0.2,
+  "categories": {
+    "road_traffic": [
+      "Vehicle",
+      "Motor vehicle (road)",
+      "Car",
+      "Car passing by",
+      "Traffic noise, roadway noise",
+      "Truck",
+      "Bus",
+      "Motorcycle",
+      "Engine",
+      "Idling",
+      "Accelerating, revving, vroom",
+      "Engine starting",
+      "Medium engine (mid frequency)",
+      "Heavy engine (low frequency)",
+      "Light engine (high frequency)",
+      "Tire squeal",
+      "Skidding",
+      "Vehicle horn, car horn, honking",
+      "Air brake",
+      "Reversing beeps",
+      "Emergency vehicle",
+      "Siren",
+      "Police car (siren)",
+      "Ambulance (siren)",
+      "Fire engine, fire truck (siren)",
+      "Race car, auto racing"
+    ],
+    "speech": [
+      "Speech",
+      "Child speech, kid speaking",
+      "Conversation",
+      "Narration, monologue",
+      "Babbling",
+      "Whispering",
+      "Shout",
+      "Yell",
+      "Children shouting",
+      "Chatter",
+      "Crowd",
+      "Hubbub, speech noise, speech babble",
+      "Laughter"
+    ],
+    "construction": [
+      "Jackhammer",
+      "Drill",
+      "Power tool",
+      "Hammer",
+      "Sawing",
+      "Sanding",
+      "Filing (rasp)",
+      "Chainsaw",
+      "Tools",
+      "Wood",
+      "Scrape"
+    ]
+  }
+}

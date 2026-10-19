@@ -7,6 +7,7 @@ import '../../domain/acoustics/background_keep_alive.dart';
 import '../../domain/acoustics/level_meter.dart';
 import '../../domain/acoustics/microphone_calibration.dart';
 import '../../domain/acoustics/pcm_source.dart';
+import '../../domain/acoustics/source_classifier.dart';
 import '../../domain/models/noise_reading.dart';
 
 enum MeasurementStatus {
@@ -45,6 +46,7 @@ class MeasurementViewModel extends ChangeNotifier {
     MicrophoneCalibration? calibration,
     this.window = const Duration(minutes: 1),
     DateTime Function()? clock,
+    this._loadClassifier,
   }) : calibration = calibration ?? MicrophoneCalibration.androidCddNominal,
        _clock = clock ?? DateTime.now {
     // Stop pressed on the notification, outside the app.
@@ -89,6 +91,36 @@ class MeasurementViewModel extends ChangeNotifier {
     }
     if (!_disposed) notifyListeners();
   }
+
+  /// Loads the on-device source classifier (FR-09), or null where there is
+  /// none. Called once, on the first start, so the 4 MB model does not slow
+  /// app launch for a user who never measures.
+  final Future<WindowClassifier> Function()? _loadClassifier;
+  WindowClassifier? _classifier;
+  bool _classifierTried = false;
+  bool _classificationEnabled = true;
+
+  /// Whether readings will carry a noise source. False if the model could not
+  /// be loaded: measurement then continues without one, because a missing
+  /// label is a lesser loss than a missing reading.
+  bool get classifierAvailable => _classifier != null;
+
+  /// The Settings "Classify noise source" switch.
+  bool get classificationEnabled => _classificationEnabled;
+
+  void setClassificationEnabled(bool enabled) {
+    if (enabled == _classificationEnabled) return;
+    _classificationEnabled = enabled;
+    _classifier?.enabled = enabled;
+    // Partial totals from before the switch would describe only part of the
+    // window, so they are discarded.
+    _classifier?.reset();
+    notifyListeners();
+  }
+
+  /// The source of the last completed window, for the Monitor screen.
+  SourceClassification? get lastSource => _lastSource;
+  SourceClassification? _lastSource;
 
   final PcmSource _source;
   final Future<bool> Function(NoiseReading reading) _onReading;
@@ -149,11 +181,13 @@ class MeasurementViewModel extends ChangeNotifier {
         await _release();
         return;
       }
+      await _ensureClassifier();
       final stream = await _source.start();
       if (_disposed) {
         await _source.stop();
         return;
       }
+      _classifier?.reset();
       _meter = LevelMeter(
         sampleRate: _source.sampleRate,
         calibration: calibration,
@@ -194,25 +228,50 @@ class MeasurementViewModel extends ChangeNotifier {
     final meter = _meter;
     if (meter == null) return;
     final out = meter.process(samples);
+    _classifier?.add(samples);
     if (out.liveLevelsDb.isNotEmpty) _liveLevelDb = out.liveLevelsDb.last;
     _elapsed = meter.elapsedInWindow;
     for (final w in out.windows) {
       _lastWindow = w;
-      _submit(w);
+      // Taken synchronously as the window closes, so the next window's
+      // frames start a fresh tally.
+      final source = _classifier?.takeWindow();
+      if (source != null) _lastSource = source;
+      _submit(w, source);
     }
     if (out.liveLevelsDb.isNotEmpty || out.windows.isNotEmpty) {
       notifyListeners();
     }
   }
 
-  Future<void> _submit(MeasuredWindow w) async {
+  Future<void> _ensureClassifier() async {
+    final load = _loadClassifier;
+    if (_classifierTried || load == null) return;
+    _classifierTried = true;
+    try {
+      _classifier = await load()
+        ..enabled = _classificationEnabled;
+    } on Object {
+      // Model missing or the runtime unavailable: measure without labels.
+      _classifier = null;
+    }
+  }
+
+  Future<void> _submit(MeasuredWindow w, SourceClassification? source) async {
     // laeq carries the energy average used for dose; dbA carries the window's
     // loudest fast block, so a threshold compared against it still responds
     // to peaks.
+    final confidence = source?.confidence;
     final reading = NoiseReading(
       timestamp: w.start,
       dbA: _round1(w.maxFastDb),
       laeq: _round1(w.laeqDb),
+      classLabel: source?.label,
+      // Two decimals: a model score is not precise beyond that, and the UI
+      // shows it as a whole percentage.
+      confidence: confidence == null
+          ? null
+          : (confidence * 100).roundToDouble() / 100,
     );
     final ok = await _onReading(reading);
     if (_disposed) return;
@@ -261,6 +320,7 @@ class MeasurementViewModel extends ChangeNotifier {
     // released when the user signs out, not left running behind the sign-in
     // screen.
     unawaited(_release());
+    unawaited(_classifier?.close());
     super.dispose();
   }
 }
