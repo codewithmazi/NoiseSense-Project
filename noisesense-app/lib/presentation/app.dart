@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'screens/confirm_account_screen.dart';
-import 'screens/dashboard_screen.dart';
+import 'screens/home_shell.dart';
 import 'screens/sign_in_screen.dart';
 import 'theme/app_theme.dart';
 import 'view_models/auth_view_model.dart';
@@ -128,9 +128,10 @@ class _NoiseSenseAppState extends State<NoiseSenseApp> {
     // is unreachable in practice. It is here so a future reordering degrades
     // to a splash rather than to a null dereference.
     if (dashboard == null || measurement == null) return const _SplashScreen();
-    return DashboardScreen(
-      viewModel: dashboard,
+    return HomeShell(
+      dashboard: dashboard,
       measurement: measurement,
+      email: widget.auth.signedInEmail,
       onSignOut: widget.auth.signOut,
     );
   }

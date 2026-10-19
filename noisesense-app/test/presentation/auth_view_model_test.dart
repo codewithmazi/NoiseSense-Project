@@ -91,6 +91,10 @@ class _FakeAuthRepository implements AuthRepository {
 
   @override
   Future<String?> currentUserId() async => sessionValid ? 'user-1' : null;
+
+  @override
+  Future<String?> currentEmail() async =>
+      sessionValid ? 'restored@example.com' : null;
 }
 
 void main() {
@@ -113,6 +117,19 @@ void main() {
       repository.sessionValid = true;
       await viewModel.restoreSession();
       expect(viewModel.status, AuthStatus.signedIn);
+    });
+
+    test('a restored session knows the account email for Settings', () async {
+      repository.sessionValid = true;
+      await viewModel.restoreSession();
+      expect(viewModel.signedInEmail, 'restored@example.com');
+    });
+
+    test('no email is exposed once signed out', () async {
+      repository.sessionValid = true;
+      await viewModel.restoreSession();
+      await viewModel.signOut();
+      expect(viewModel.signedInEmail, isNull);
     });
 
     test('no stored session goes to signed out', () async {

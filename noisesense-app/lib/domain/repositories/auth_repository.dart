@@ -58,4 +58,7 @@ abstract interface class AuthRepository {
   /// A stable, opaque identifier for the signed-in user, or null when signed
   /// out. Used to keep each user's on-device data apart; it is never shown.
   Future<String?> currentUserId();
+
+  /// The signed-in user's email address, for display in Settings, or null.
+  Future<String?> currentEmail();
 }

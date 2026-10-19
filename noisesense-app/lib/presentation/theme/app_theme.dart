@@ -9,54 +9,64 @@ import 'package:flutter/material.dart';
 /// same meaning always looks the same (Nielsen, 1994: consistency and
 /// standards).
 ///
-/// The palette continues the dark navy used in the 602 presentation deck, so
-/// the software, slides and report read as one piece of work. Every foreground
-/// and background pair below is asserted against WCAG 2.2 SC 1.4.3 by
-/// `test/presentation/theme_contrast_test.dart`; the measured ratios are
-/// reported rather than claimed.
+/// The palette is taken from the project's hi-fi wireframes
+/// (`Wireframes_HiFi.drawio`), which share it with the presentation deck:
+/// navy surfaces, teal for normal, amber for approaching the limit and coral
+/// for exceeding it. An earlier version of this file described its palette as
+/// "the 602 deck's navy" without having been checked against either source;
+/// it did not match, and was replaced with the wireframe values.
+///
+/// Every foreground and background pair below is asserted against WCAG 2.2 by
+/// `test/presentation/theme_contrast_test.dart`, and one wireframe colour was
+/// changed as a result (see [outlineSubtle]).
 class AppTheme {
   const AppTheme._();
 
   // ------------------------------------------------------------------ palette
 
-  /// Page background.
-  static const Color surface = Color(0xFF0F1B2D);
+  /// Page background. Wireframe `#0B1F3A`.
+  static const Color surface = Color(0xFF0B1F3A);
 
-  /// Raised panels: cards, list rows, input fields.
-  static const Color surfaceContainer = Color(0xFF1B2A41);
+  /// Raised panels: cards, list rows, input fields, the navigation bar.
+  /// Wireframe `#122E52`.
+  static const Color surfaceContainer = Color(0xFF122E52);
 
   /// Primary body text and headings.
-  static const Color onSurface = Color(0xFFE8EDF4);
+  static const Color onSurface = Color(0xFFFFFFFF);
 
-  /// Supporting text: units, timestamps, hints. Deliberately still above the
-  /// 4.5:1 body-text threshold, not merely above the large-text threshold,
-  /// because this style is used at normal size.
-  static const Color onSurfaceMuted = Color(0xFFAEBACB);
+  /// Supporting text: units, timestamps, hints. Wireframe `#B8C7D9`, which
+  /// clears the 4.5:1 body-text threshold on both surfaces, not merely the
+  /// large-text one, because this style is used at normal size.
+  static const Color onSurfaceMuted = Color(0xFFB8C7D9);
 
-  /// Interactive accent: primary buttons, links, selected state.
-  static const Color primary = Color(0xFF4FA3E3);
+  /// Teal. The accent for actions and selected state, and the "normal"
+  /// exposure tone. Wireframe `#2EC4B6`.
+  static const Color primary = Color(0xFF2EC4B6);
 
-  /// Text and icons drawn on [primary].
-  static const Color onPrimary = Color(0xFF06121F);
+  /// Text and icons drawn on [primary], [warning] or [error]: the page navy.
+  static const Color onPrimary = Color(0xFF0B1F3A);
 
-  /// Error text and icons, drawn on [surface] or [surfaceContainer].
-  static const Color error = Color(0xFFFFB4AB);
+  /// Amber: exposure approaching the user's limit. Wireframe `#FFB43B`.
+  static const Color warning = Color(0xFFFFB43B);
+
+  /// Coral: exposure above the limit, and errors. Wireframe `#FF6B6B`.
+  ///
+  /// One colour for both, because both mean "something needs your attention"
+  /// and a second red would ask the user to learn a distinction that carries
+  /// no meaning.
+  static const Color error = Color(0xFFFF6B6B);
 
   /// Input borders and dividers. Non-text, so judged against SC 1.4.11 at 3:1.
   static const Color outline = Color(0xFF8A9AB0);
 
   /// Panel borders.
   ///
-  /// Added after the contrast test failed. [surfaceContainer] sits only
-  /// 1.20:1 against [surface], so a card distinguished by its fill alone has
-  /// no discernible boundary, and raising one background far enough from the
-  /// other to reach 3:1 is not achievable without wrecking the text contrast
-  /// on top of it. Giving panels an explicit outline instead moves the
-  /// boundary onto something that can meet the criterion on its own.
-  ///
-  /// Dimmer than [outline], because a panel edge should organise the page
-  /// rather than compete with the inputs on it, but still above 3:1.
-  static const Color outlineSubtle = Color(0xFF5E6E85);
+  /// The one deliberate departure from the wireframes. They draw card edges
+  /// in `#1B3D68`, which measures 1.51:1 against the page: under the 3:1 that
+  /// SC 1.4.11 requires of a boundary that identifies a component, and the
+  /// panel fill alone is no help (see [informationalPairs]). This is the
+  /// nearest blue of the same hue that passes on both surfaces.
+  static const Color outlineSubtle = Color(0xFF577AA3);
 
   // ------------------------------------------------------------------ metrics
 
@@ -92,8 +102,16 @@ class AppTheme {
     'accent text on panel': (primary, surfaceContainer),
     'error text on page': (error, surface),
     'error text on panel': (error, surfaceContainer),
+    'warning text on page': (warning, surface),
+    'warning text on panel': (warning, surfaceContainer),
     'label on primary button': (onPrimary, primary),
+    'label on warning chip': (onPrimary, warning),
+    'label on error chip': (onPrimary, error),
   };
+
+  /// Tone colours used as graphics: the gauge ring and the dose bar. Judged
+  /// as non-text against both surfaces.
+  static const List<Color> toneColours = [primary, warning, error];
 
   /// Non-text pairs judged against SC 1.4.11 at 3:1.
   ///
@@ -104,6 +122,13 @@ class AppTheme {
         'field border on page': (outline, surface),
         'field border on panel': (outline, surfaceContainer),
         'panel border on page': (outlineSubtle, surface),
+        'panel border on panel': (outlineSubtle, surfaceContainer),
+        'gauge teal on page': (primary, surface),
+        'gauge amber on page': (warning, surface),
+        'gauge coral on page': (error, surface),
+        'dose bar teal on track': (primary, surfaceContainer),
+        'dose bar amber on track': (warning, surfaceContainer),
+        'dose bar coral on track': (error, surfaceContainer),
       };
 
   /// Pairs measured for the record but not held to a threshold.
@@ -151,8 +176,9 @@ class AppTheme {
           // Height, not just padding, so the target stays large enough when
           // the user has scaled text down as well as up.
           minimumSize: const Size.fromHeight(minTouchTarget),
-          shape: const RoundedRectangleBorder(borderRadius: radius),
-          textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+          // Pill-shaped, as in the wireframes.
+          shape: const StadiumBorder(),
+          textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
         ),
       ),
       textButtonTheme: TextButtonThemeData(
@@ -212,6 +238,52 @@ class AppTheme {
       dividerTheme: const DividerThemeData(
         color: outlineSubtle,
         thickness: 0.5,
+      ),
+      navigationBarTheme: NavigationBarThemeData(
+        backgroundColor: surfaceContainer,
+        indicatorColor: primary,
+        // Labels always shown. Icon-only navigation forces the user to learn
+        // what each glyph means (Nielsen, 1994: recognition rather than
+        // recall), and gives a screen reader nothing better than the icon's
+        // name.
+        labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
+        labelTextStyle: WidgetStateProperty.resolveWith(
+          (states) => TextStyle(
+            fontSize: 13,
+            color: onSurfaceMuted,
+            fontWeight: states.contains(WidgetState.selected)
+                ? FontWeight.w700
+                : FontWeight.w500,
+          ),
+        ),
+        iconTheme: WidgetStateProperty.resolveWith(
+          (states) => IconThemeData(
+            color: states.contains(WidgetState.selected)
+                ? onPrimary
+                : onSurfaceMuted,
+          ),
+        ),
+      ),
+      switchTheme: SwitchThemeData(
+        thumbColor: WidgetStateProperty.resolveWith(
+          (states) =>
+              states.contains(WidgetState.selected) ? onPrimary : outline,
+        ),
+        trackColor: WidgetStateProperty.resolveWith(
+          (states) => states.contains(WidgetState.selected)
+              ? primary
+              : surfaceContainer,
+        ),
+        trackOutlineColor: const WidgetStatePropertyAll(outline),
+      ),
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          foregroundColor: onSurface,
+          side: const BorderSide(color: primary),
+          minimumSize: const Size.fromHeight(minTouchTarget),
+          shape: const StadiumBorder(),
+          textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+        ),
       ),
       snackBarTheme: const SnackBarThemeData(
         backgroundColor: surfaceContainer,

@@ -60,6 +60,36 @@ class MeasurementViewModel extends ChangeNotifier {
   /// Whether measurement will continue when the app is not on screen.
   bool get measuresInBackground => _keepAliveHeld;
 
+  bool _backgroundEnabled = true;
+
+  /// The user's choice, from Settings, to allow measuring with the screen
+  /// off. On by default because coverage is the point of the product, but the
+  /// user can refuse: the notification makes an always-on microphone
+  /// visible, and this makes it optional.
+  ///
+  /// Held in memory only, so it returns to on when the app restarts. Persisting
+  /// it is recorded as a limitation rather than built, to avoid a settings
+  /// store for one boolean in the final week.
+  bool get backgroundEnabled => _backgroundEnabled;
+
+  /// Applies at once if measuring: switching off releases the service, so
+  /// measurement falls back to foreground-only; switching on requests it.
+  /// The call comes from the Settings screen, so the app is visible, which
+  /// Android 11+ requires for starting a microphone service.
+  Future<void> setBackgroundEnabled(bool enabled) async {
+    if (enabled == _backgroundEnabled) return;
+    _backgroundEnabled = enabled;
+    if (isMeasuring) {
+      if (enabled && !_keepAliveHeld) {
+        _keepAliveHeld = await _keepAlive.begin();
+      } else if (!enabled && _keepAliveHeld) {
+        _keepAliveHeld = false;
+        await _keepAlive.end();
+      }
+    }
+    if (!_disposed) notifyListeners();
+  }
+
   final PcmSource _source;
   final Future<bool> Function(NoiseReading reading) _onReading;
   final DateTime Function() _clock;
@@ -114,7 +144,7 @@ class MeasurementViewModel extends ChangeNotifier {
       // Requested before capture opens and while the app is visible, which
       // Android 11+ requires of a microphone foreground service. Android 14+
       // also requires microphone permission first, granted just above.
-      _keepAliveHeld = await _keepAlive.begin();
+      _keepAliveHeld = _backgroundEnabled && await _keepAlive.begin();
       if (_disposed) {
         await _release();
         return;

@@ -239,6 +239,34 @@ void main() {
       expect(keepAlive.ends, 1);
     });
 
+    test('with background monitoring switched off, the service is not '
+        'requested and hiding the app stops measuring', () async {
+      await bg.setBackgroundEnabled(false);
+      await bg.start();
+      expect(keepAlive.begins, 0);
+      await bg.onForegroundChanged(inForeground: false);
+      expect(bg.isMeasuring, isFalse);
+    });
+
+    test(
+      'switching it off mid-measurement releases the service at once',
+      () async {
+        await bg.start();
+        await bg.setBackgroundEnabled(false);
+        expect(keepAlive.ends, 1);
+        expect(bg.measuresInBackground, isFalse);
+        expect(bg.isMeasuring, isTrue, reason: 'still measuring on screen');
+      },
+    );
+
+    test('switching it back on mid-measurement requests the service', () async {
+      await bg.setBackgroundEnabled(false);
+      await bg.start();
+      await bg.setBackgroundEnabled(true);
+      expect(keepAlive.begins, 1);
+      expect(bg.measuresInBackground, isTrue);
+    });
+
     test('the service is not ended twice', () async {
       await bg.start();
       await bg.stop();

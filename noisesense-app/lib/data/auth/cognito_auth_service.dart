@@ -109,6 +109,16 @@ class CognitoAuthService implements AuthRepository, TokenProvider {
   Future<String?> currentUserId() async =>
       (await _session())?.getAccessToken().getSub();
 
+  /// Read from the ID token, which carries the `email` claim; the access token
+  /// does not. It is only displayed on this device, never sent anywhere, so
+  /// this does not reverse the decision to send the access token to the API.
+  @override
+  Future<String?> currentEmail() async {
+    final payload = (await _session())?.getIdToken().payload;
+    final email = payload is Map ? payload['email'] : null;
+    return email is String ? email : null;
+  }
+
   @override
   Future<String?> bearerToken() async {
     final session = await _session();

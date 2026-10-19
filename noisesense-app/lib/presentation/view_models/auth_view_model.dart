@@ -81,14 +81,23 @@ class AuthViewModel extends ChangeNotifier {
   Future<void> restoreSession() async {
     final valid = await _auth.hasValidSession();
     _status = valid ? AuthStatus.signedIn : AuthStatus.signedOut;
+    if (valid) _signedInEmail = await _auth.currentEmail();
     notifyListeners();
   }
+
+  String? _signedInEmail;
+
+  /// The account shown in Settings. Null when signed out, or if the token
+  /// does not carry an address.
+  String? get signedInEmail =>
+      _status == AuthStatus.signedIn ? _signedInEmail : null;
 
   Future<bool> signIn({required String email, required String password}) {
     final address = email.trim();
     return _run(
       () async {
         await _auth.signIn(email: address, password: password);
+        _signedInEmail = address;
         _status = AuthStatus.signedIn;
       },
       onFailure: (error) {

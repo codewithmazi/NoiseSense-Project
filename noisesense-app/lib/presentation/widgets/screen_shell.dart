@@ -50,7 +50,11 @@ class ScreenShell extends StatelessWidget {
         actions: actions,
       ),
       body: SafeArea(
-        child: Center(
+        // Top-aligned, not centred. With Center, a page shorter than the
+        // screen was pushed down to the middle, which left a large empty band
+        // above the Summary tab on the S9+.
+        child: Align(
+          alignment: Alignment.topCenter,
           child: ConstrainedBox(
             // Caps line length on a tablet or a landscape phone. Text set
             // across the full width of a wide screen is measurably harder to

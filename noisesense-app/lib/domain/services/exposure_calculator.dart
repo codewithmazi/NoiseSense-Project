@@ -121,5 +121,18 @@ class ExposureCalculator {
     );
   }
 
+  /// The dose as a fraction of the user's limit, on an equal-energy basis:
+  /// 10^((level − limit) / 10).
+  ///
+  /// This is how the wireframes' "64% of daily limit" is given a defensible
+  /// meaning. Sound energy, not decibels, is what accumulates, so 3 dB below
+  /// the limit is half the allowed energy (50%), at the limit is 100%, and
+  /// 3 dB above it is twice the allowance (200%). The same equal-energy
+  /// principle is the basis of occupational noise-dose calculation. A linear
+  /// "level ÷ limit" percentage would put 67 dB at 96% of a 70 dB limit,
+  /// which badly understates how close it is.
+  static double doseFraction(double levelDb, double limitDb) =>
+      math.pow(10, (levelDb - limitDb) / 10).toDouble();
+
   static double _toDb(double energy) => 10 * math.log(energy) / math.ln10;
 }

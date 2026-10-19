@@ -55,7 +55,9 @@ class ReadingTile extends StatelessWidget {
         child: Row(
           children: [
             SizedBox(
-              width: 86,
+              // Wide enough for "16 Oct, 20:12" on one line at normal text
+              // size; at 86 it wrapped onto two on the S9+.
+              width: 112,
               child: Text(
                 Formatters.timestamp(reading.timestamp),
                 style: const TextStyle(

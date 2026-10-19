@@ -64,6 +64,9 @@ class _StubAuthRepository implements AuthRepository {
 
   @override
   Future<String?> currentUserId() async => null;
+
+  @override
+  Future<String?> currentEmail() async => null;
 }
 
 void main() {
