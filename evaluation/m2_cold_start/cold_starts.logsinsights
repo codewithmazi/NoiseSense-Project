@@ -1,0 +1,27 @@
+# M2: cold-start cost of the ingest Lambda, from its own REPORT lines.
+#
+# Run in CloudWatch > Logs Insights, log group /aws/lambda/noise-ingest-dev,
+# time range covering the M1 run (and anything since the stack deployed).
+# Read-only: it queries logs and changes nothing.
+#
+# Lambda writes one REPORT line per invocation. An "Init Duration" field is
+# present only when that invocation had to create a new execution
+# environment, which is the definition of a cold start, so this separates
+# cold from warm on the provider's own measurement rather than on guesses
+# from client latency.
+#
+# Note @duration excludes init time, so a cold invocation's total server-side
+# time is @initDuration + @duration (computed as totalMs below).
+
+filter @type = "REPORT"
+| fields ispresent(@initDuration) as cold,
+         @initDuration + @duration as totalMs
+| stats count(*) as invocations,
+        avg(@initDuration) as avgInitMs,
+        pct(@initDuration, 50) as p50InitMs,
+        pct(@initDuration, 95) as p95InitMs,
+        max(@initDuration) as maxInitMs,
+        avg(@duration) as avgHandlerMs,
+        pct(@duration, 95) as p95HandlerMs,
+        avg(@maxMemoryUsed / 1000 / 1000) as avgMemMB
+  by cold

@@ -24,3 +24,7 @@ jobs:
 
       - name: Lint SAM/CloudFormation template
         run: cfn-lint template.yaml
+
+      # Backend unit tests. boto3 is stubbed inside the testS so they need no AWS credentials and no packages beyond the standard library.
+      - name: Run backend unit tests
+        run: python -m unittest discover -s tests -v

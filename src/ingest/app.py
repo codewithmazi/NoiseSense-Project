@@ -142,7 +142,13 @@ def _post_metrics(event, user_id):
             },
         )
 
-    _publish_event(user_id, timestamp, float(db_a))
+    laeq = data.get("laeq")
+    _publish_event(
+        user_id,
+        timestamp,
+        float(db_a),
+        float(laeq) if isinstance(laeq, (int, float)) and not isinstance(laeq, bool) else None,
+    )
     return _response(
         201,
         {
@@ -153,9 +159,14 @@ def _post_metrics(event, user_id):
     )
 
 
-def _publish_event(user_id, timestamp, db_a):
+def _publish_event(user_id, timestamp, db_a, laeq=None):
     """Best-effort: publish a MetricsReceived event. The reading is already stored,
-    so a publish failure is logged but does not fail the request."""
+    so a publish failure is logged but does not fail the request.
+
+    Carries laeq as well as dbA, because the threshold Lambda alerts on the
+    minute's energy average (laeq, what the app displays), not its loudest
+    moment (dbA). Sending only dbA made alert emails quote peak levels the
+    user never saw in the app."""
     if not EVENT_BUS_NAME:
         print("WARN: EVENT_BUS_NAME not set; skipping event publish")
         return
@@ -166,7 +177,12 @@ def _publish_event(user_id, timestamp, db_a):
                     "Source": "noise.ingest",
                     "DetailType": "MetricsReceived",
                     "Detail": json.dumps(
-                        {"userId": user_id, "timestamp": timestamp, "dbA": db_a}
+                        {
+                            "userId": user_id,
+                            "timestamp": timestamp,
+                            "dbA": db_a,
+                            "laeq": laeq,
+                        }
                     ),
                     "EventBusName": EVENT_BUS_NAME,
                 }
