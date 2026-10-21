@@ -1,0 +1,25 @@
+M2 cold-start measurement: ingest Lambda (noise-ingest-dev), 19 Oct 2026
+Source: CloudWatch Logs Insights over the function's REPORT lines (one per
+invocation), query in evaluation/m2_cold_start/cold_starts.logsinsights.
+Window: about 15:00-15:04 local, covering the M1 load test. 8,267 invocations.
+Values transcribed from Ron's Logs Insights screenshot.
+
+cold  invocations  avgInitMs  p50InitMs  p95InitMs  maxInitMs  avgHandlerMs  p95HandlerMs  avgMemMB
+0     8249         -          -          -          -          69.61         93.12         92.97
+1     18           518.55     527        590.14     590.14     483.63        543.70        92.61
+
+Derived
+  Cold-start share of invocations:   18 / 8,267 = 0.22%
+  Server time, warm invocation:      69.6 ms mean (handler only; no init)
+  Server time, cold invocation:      518.6 init + 483.6 handler = 1,002 ms mean
+  Cold-start penalty:                ~932 ms mean, ~14x a warm invocation
+  Of which init (runtime + imports): 519 ms
+  Of which first-request handler:    414 ms over the warm mean (483.6 - 69.6)
+  Memory used vs configured:         ~93 MB of 128 MB (73%)
+
+Caveats
+  n = 18 cold starts: small; p95 and max coincide at 590 ms for that reason.
+  Server-side only; client-observed latency adds the network round trip.
+  The first-request handler excess is inferred from the comparison, not
+  instrumented; its cause (lazy client set-up, first TLS connection to
+  DynamoDB and EventBridge) is a hypothesis.

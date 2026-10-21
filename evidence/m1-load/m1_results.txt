@@ -1,0 +1,54 @@
+M1 load test of POST /metrics, 19 Oct 2026 15:00 UTC, run from Ron's laptop (UK)
+against https://5bxb78xw9c.execute-api.us-east-1.amazonaws.com/metrics.
+Closed loop, 30 s per step. Transcribed from the script's printed output.
+
+conc   reqs    ok/s   p50   p95   p99    N/R    err
+   1    151     5.0   198   242   308    5.0   0.0%
+   2    342    11.3   162   220   291   11.4   0.0%
+   5    843    28.0   161   190   349   28.0   0.0%
+  10   1630    54.1   162   189   347   54.2   0.0%
+  15   2227    73.6   164   210   348   74.1   0.0%
+  20   3072   101.8   162   187   356  102.2   0.0%
+
+Pre-registered objectives (fixed before the run):
+  O1 throughput >= 20 req/s            peak 101.8      MET
+  O2 p95 <= 1,000 ms at <= 10 clients  worst 242 ms    MET
+  O3 error rate <= 1% at <= 10 clients worst 0.0%      MET
+  No errors or throttling at any step, including 15 and 20 clients.
+
+Cross-check with M2: 8,265 requests sent; CloudWatch recorded 8,267 ingest
+invocations over the same window (2 extra, likely app readings).
+
+Analysis
+  Client p50 is ~162 ms at every level; server-side warm handler time (M2) is
+  69.6 ms, so roughly 90 ms is network and API Gateway. Latency does not rise
+  with load, and ok/s matches Little's-law N/R throughout: no queueing.
+
+  Why the expected throttling above 10 clients did not appear: Lambda
+  concurrency is (arrival rate x server time), not client count. At 20 clients
+  that is 101.8 req/s x 0.0696 s = 7.1 concurrent executions, under the
+  10-execution lab cap. Clients spend most of each cycle waiting on the
+  network, not occupying a Lambda. The test therefore did NOT reach the
+  system's ceiling; it shows the system is not the bottleneck at 101.8 req/s.
+
+  Predicted ceiling (untested): 10 / 0.0696 s = ~144 req/s for ingest alone,
+  lower if the threshold Lambda's invocations draw on the same cap.
+  In users at one reading a minute: measured 101.8 req/s = ~6,100 users;
+  predicted ceiling ~144 req/s = ~8,600 users.
+
+
+CEILING RUN, 19 Oct 2026, same client and endpoint, 30 s per step
+(transcribed from the printed step lines; the end-of-run summary crashed on
+a script bug, since fixed, after the measurements were taken)
+
+conc   reqs    ok/s   p95    err
+  30   4200   139.2   186   0.0%
+  40   4198   137.2   196   0.0%
+  60   3511   116.0   254   0.0%
+
+Throughput stops rising at 30 clients (~139 req/s), holds at 40, and FALLS at
+60 while p95 rises: saturation. The Little's-law prediction from M2's warm
+handler time was ~144 req/s; the measured plateau is within 4% of it.
+No errors at any step, so the saturation was not visible as throttling.
+Whether the limit was the Lambda concurrency cap or the client machine is
+not yet established; see the CloudWatch Throttles/ConcurrentExecutions check.

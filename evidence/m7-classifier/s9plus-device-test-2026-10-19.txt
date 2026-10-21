@@ -1,0 +1,11 @@
+﻿S9+ (SM-G965F, Android 10) classifier test, 19 Oct 2026. Window start times are UTC (BST = UTC+1).
+Protocol (by Ron): 10:58 BST reading aloud continuously; 11:01, 11:02, 11:04, 11:05 traffic clip played through a speaker beside the phone; 11:07, 11:12 quiet room.
+Mapping and model as shipped: mean category score over the window, threshold 0.2.
+
+2026-10-19T09:58:01.178071Z laeq=63.1 -> speech 0.91 | frames=61 dropped=0 infer=113ms | top: Speech=0.91, Silence=0.01, Inside, small room=0.01, Narration, monologue=0.01, Animal=0.00
+2026-10-19T10:01:03.604007Z laeq=78.7 -> other - | frames=61 dropped=0 infer=110ms | top: Vehicle=0.11, White noise=0.07, Aircraft=0.06, Tools=0.06, Helicopter=0.06
+2026-10-19T10:02:03.604007Z laeq=77.4 -> other - | frames=61 dropped=0 infer=102ms | top: White noise=0.18, Noise=0.10, Hiss=0.08, Steam=0.07, Vehicle=0.06
+2026-10-19T10:04:13.234688Z laeq=76.2 -> other - | frames=61 dropped=0 infer=107ms | top: White noise=0.06, Inside, small room=0.06, Ratchet, pawl=0.06, Vehicle=0.06, Mechanisms=0.04
+2026-10-19T10:05:13.234688Z laeq=78.7 -> other - | frames=61 dropped=0 infer=96ms | top: Vehicle=0.10, Aircraft=0.09, Hiss=0.08, Steam=0.08, Helicopter=0.07
+2026-10-19T10:07:53.111785Z laeq=35.8 -> other - | frames=61 dropped=0 infer=108ms | top: Silence=0.62, Inside, small room=0.01, Speech=0.01, Breathing=0.01, Snoring=0.01
+2026-10-19T10:12:24.967803Z laeq=32.1 -> other - | frames=61 dropped=0 infer=110ms | top: Silence=0.64, Speech=0.01, Inside, small room=0.01, Breathing=0.01, Sound effect=0.00

@@ -177,9 +177,18 @@ def main():
 
     peak = max(s["rps_ok"] for s in summaries)
     within = [s for s in summaries if s["concurrency"] <= LAB_CAP]
-    worst_p95 = max(s["p95_ms"] for s in within)
-    worst_err = max(s["error_rate"] for s in within)
+    # O2 and O3 are defined at up to LAB_CAP clients. A run made only of
+    # higher steps (the ceiling run, --steps 30,40,60) cannot assess them; an
+    # earlier version took max() of the empty list and crashed after the
+    # measurements had been taken but before the files were written.
+    worst_p95 = max((s["p95_ms"] for s in within), default=None)
+    worst_err = max((s["error_rate"] for s in within), default=None)
     first_throttle = next((s["concurrency"] for s in summaries if s["error_rate"] > 0), None)
+
+    def verdict(value, limit, fmt):
+        if value is None:
+            return f"not assessed (no step at or below {LAB_CAP} clients in this run)"
+        return f"worst {fmt.format(value)}  {'MET' if value <= limit else 'NOT MET'}"
     lines = [
         f"M1 load test of POST /metrics, run {started:%Y-%m-%d %H:%M} UTC from the client machine",
         f"Endpoint: {url}",
@@ -200,10 +209,10 @@ def main():
         "Against the pre-registered objective:",
         f"  O1 throughput >= {OBJ_RPS:.0f} req/s: peak {peak:.1f}  "
         f"{'MET' if peak >= OBJ_RPS else 'NOT MET'}",
-        f"  O2 p95 <= {OBJ_P95_MS:.0f} ms at <= {LAB_CAP} clients: worst {worst_p95:.0f} ms  "
-        f"{'MET' if worst_p95 <= OBJ_P95_MS else 'NOT MET'}",
-        f"  O3 error rate <= {OBJ_ERR:.0%} at <= {LAB_CAP} clients: worst {worst_err:.1%}  "
-        f"{'MET' if worst_err <= OBJ_ERR else 'NOT MET'}",
+        f"  O2 p95 <= {OBJ_P95_MS:.0f} ms at <= {LAB_CAP} clients: "
+        + verdict(worst_p95, OBJ_P95_MS, "{:.0f} ms"),
+        f"  O3 error rate <= {OBJ_ERR:.0%} at <= {LAB_CAP} clients: "
+        + verdict(worst_err, OBJ_ERR, "{:.1%}"),
         f"  First step with any errors: {first_throttle if first_throttle else 'none'} clients",
     ]
     text = "\n".join(lines)

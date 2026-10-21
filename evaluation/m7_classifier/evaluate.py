@@ -157,18 +157,22 @@ def main(esc_root, out_dir):
         scores = {t: metrics([c[1] for c in tune], [decide(c[2], rule, t) for c in tune])[2] for t in grid}
         best_t = max(scores, key=scores.get)
         shipped = metrics([c[1] for c in test], [decide(c[2], rule, 0.2) for c in test])[2]
-        cm, per, macro = metrics([c[1] for c in test], [decide(c[2], rule, best_t) for c in test])
         report.append(f"Rule '{rule}': threshold chosen on tuning folds = {best_t} "
                       f"(tuning macro-F1 {scores[best_t]:.3f})")
-        report.append(f"  TEST macro-F1 {macro:.3f}   (at the original 0.2: {shipped:.3f})")
-        report.append("  confusion matrix, rows = truth, columns = predicted")
-        report.append("  " + " " * 14 + "".join(f"{p[:12]:>13}" for p in SOURCES))
-        for t in SOURCES:
-            report.append(f"  {t[:12]:<14}" + "".join(f"{cm[t][p]:>13}" for p in SOURCES))
-        report.append("  class          precision  recall    F1   support")
-        for c in SOURCES:
-            p, r, f, n = per[c]
-            report.append(f"  {c:<14} {p:9.2f} {r:7.2f} {f:6.2f} {n:8d}")
+        # Both matrices are printed and labelled. An earlier version printed
+        # only the tuned one, and its per-class figures were then quoted as if
+        # they described the shipped 0.2 threshold.
+        for label, t in ((f"TUNED threshold {best_t}", best_t), ("SHIPPED threshold 0.2", 0.2)):
+            cm, per, macro = metrics([c[1] for c in test], [decide(c[2], rule, t) for c in test])
+            report.append(f"  [{label}]  TEST macro-F1 {macro:.3f}")
+            report.append("  confusion matrix, rows = truth, columns = predicted")
+            report.append("  " + " " * 14 + "".join(f"{p[:12]:>13}" for p in SOURCES))
+            for tr in SOURCES:
+                report.append(f"  {tr[:12]:<14}" + "".join(f"{cm[tr][p]:>13}" for p in SOURCES))
+            report.append("  class          precision  recall    F1   support")
+            for c in SOURCES:
+                p, r, f, n = per[c]
+                report.append(f"  {c:<14} {p:9.2f} {r:7.2f} {f:6.2f} {n:8d}")
         report.append("")
     text = "\n".join(report)
     print(text)
