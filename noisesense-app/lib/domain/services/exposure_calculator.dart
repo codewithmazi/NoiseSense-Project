@@ -41,8 +41,7 @@ class ExposureDose {
   /// Time-weighted equivalent level with Lden penalties applied, in dB.
   final double levelDb;
 
-  /// Total measured time. The level only describes the time actually
-  /// measured, so the UI must show this alongside it.
+  /// Total measured time, shown alongside the level.
   final Duration coveredDuration;
 
   /// Number of readings the level was computed from.
@@ -51,24 +50,14 @@ class ExposureDose {
 
 int _deviceLocalHour(DateTime utc) => utc.toLocal().hour;
 
-/// Turns individual readings into cumulative exposure (603: FR-04).
-///
-/// This replaces the 602 design, which alerted on any single reading above a
-/// fixed level. A one-second door slam and eight hours of night-time traffic
-/// are not equivalent risks, and only an energy-based dose tells them apart.
+/// Turns individual readings into cumulative exposure
 class ExposureCalculator {
-  /// [localHour] converts a UTC timestamp to a local clock hour. It defaults
-  /// to the device's time zone, and is injectable so tests give the same
-  /// answer whether they run in UTC (CI) or British Summer Time.
+  /// Converts UTC to local hour; injectable for testing.
   const ExposureCalculator({this.localHour = _deviceLocalHour});
 
   final int Function(DateTime utc) localHour;
 
   /// Energy (logarithmic) average of levels in dB.
-  ///
-  /// Decibels are logarithmic, so they cannot be averaged arithmetically:
-  /// 60 dB and 70 dB average to about 67.4 dB, not 65 dB. Loud periods
-  /// dominate the result, which is the physically correct behaviour.
   static double energyAverage(Iterable<double> levelsDb) {
     var energy = 0.0;
     var count = 0;
@@ -82,20 +71,7 @@ class ExposureCalculator {
     return _toDb(energy / count);
   }
 
-  /// Lden-style cumulative level for readings that each cover [window].
-  ///
-  /// Each reading's level is penalised for its period, converted to energy,
-  /// averaged over the measured time, and converted back to decibels. It
-  /// uses LAeq where present because that is already an energy average over
-  /// the window, and falls back to dB(A) otherwise.
-  ///
-  /// Formal Lden assumes a complete 24-hour record. A phone almost never
-  /// provides one, so this averages over the time actually measured. With a
-  /// complete, evenly sampled day the result is identical to formal Lden; a
-  /// unit test verifies that equivalence. With partial coverage it is an
-  /// estimate, which is why [ExposureDose.coveredDuration] is reported.
-  ///
-  /// Returns null when there are no readings, since no level is defined.
+  /// Lden-style cumulative level for readings covering [window]. Returns null when there are no readings.
   ExposureDose? ldenStyle(
     Iterable<NoiseReading> readings, {
     required Duration window,
@@ -121,16 +97,7 @@ class ExposureCalculator {
     );
   }
 
-  /// The dose as a fraction of the user's limit, on an equal-energy basis:
-  /// 10^((level − limit) / 10).
-  ///
-  /// This is how the wireframes' "64% of daily limit" is given a defensible
-  /// meaning. Sound energy, not decibels, is what accumulates, so 3 dB below
-  /// the limit is half the allowed energy (50%), at the limit is 100%, and
-  /// 3 dB above it is twice the allowance (200%). The same equal-energy
-  /// principle is the basis of occupational noise-dose calculation. A linear
-  /// "level ÷ limit" percentage would put 67 dB at 96% of a 70 dB limit,
-  /// which badly understates how close it is.
+  /// Dose as an equal-energy fraction of the limit.
   static double doseFraction(double levelDb, double limitDb) =>
       math.pow(10, (levelDb - limitDb) / 10).toDouble();
 

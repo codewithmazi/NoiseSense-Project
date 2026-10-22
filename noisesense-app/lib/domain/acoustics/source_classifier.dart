@@ -4,21 +4,15 @@ import 'dart:typed_data';
 
 import 'decimator.dart';
 
-/// A pre-trained audio model: one frame of 16 kHz audio in, one score per
-/// label out.
-///
-/// The domain sees only this interface. The TensorFlow Lite implementation
-/// lives in the data layer, and tests supply scripted scores, so the logic
-/// that turns scores into a reading's source is tested without the model.
+/// A pre-trained audio model: one 16 kHz audio frame in, one score per label out.
 abstract interface class ScoreModel {
-  /// Samples per frame (YAMNet: 15,600, i.e. 0.975 s at 16 kHz).
+  /// Samples per frame.
   int get frameLength;
 
   /// Label names, indexed as the scores are.
   List<String> get labels;
 
-  /// Scores for one frame. YAMNet's are independent sigmoid outputs in 0–1,
-  /// not a probability distribution: they need not sum to one.
+  /// Scores for one frame; independent sigmoid outputs in 0–1.
   Future<Float32List> score(Float32List frame);
 
   Future<void> close();
@@ -35,34 +29,25 @@ class SourceClassification {
     this.meanInference = Duration.zero,
   });
 
-  /// Frames lost this window because the model was still busy or failed.
+  /// Frames dropped because the model was busy or failed.
   final int framesDropped;
 
-  /// The model's five highest mean label scores for the window, for
-  /// diagnosis: label names and numbers only, never audio. Added after the
-  /// first on-device test labelled every window "other", to show what the
-  /// model actually heard.
+  /// Five highest mean label scores, for diagnosis.
   final List<(String, double)> topLabels;
 
-  /// Mean time per inference this window, which experiment M8 also needs.
+  /// Mean inference time per frame.
   final Duration meanInference;
 
-  /// One of [SourceCategoryMap.categoryNames], or `other`.
+  /// Source category, or `other`.
   final String label;
 
-  /// Mean model score for [label] across the window's frames, or null for
-  /// `other`. A model score, not a calibrated probability; experiment M7
-  /// measures how far it can be trusted.
+  /// Mean model score for [label], or null for `other`.
   final double? confidence;
 
   final int framesClassified;
 }
 
-/// Which model labels count towards which NoiseSense source category.
-///
-/// Read from `assets/models/source_categories.json`. The M7 evaluation
-/// script reads the same file, so the mapping that is evaluated is exactly
-/// the mapping that ships.
+/// Maps model labels to NoiseSense source categories.
 class SourceCategoryMap {
   SourceCategoryMap._(
     this.categoryNames,
@@ -70,11 +55,7 @@ class SourceCategoryMap {
     this.minScore,
   );
 
-  /// Parses the mapping and resolves every name to a model label index.
-  ///
-  /// Throws [FormatException] if a name is not one of [modelLabels]. A
-  /// misspelt label would otherwise match nothing and silently weaken its
-  /// category.
+  /// Parses the mapping and resolves label names to model indices.
   factory SourceCategoryMap.parse(String json, List<String> modelLabels) {
     final root = jsonDecode(json) as Map<String, dynamic>;
     final index = {
@@ -101,17 +82,10 @@ class SourceCategoryMap {
   final List<String> categoryNames;
   final Map<String, List<int>> _labelsByCategory;
 
-  /// Below this mean score, no category is claimed and the window is
-  /// reported as `other`.
+  /// Minimum mean score required to claim a category.
   final double minScore;
 
-  /// One score per category for one frame: the highest score among its
-  /// member labels.
-  ///
-  /// The maximum rather than the sum, because YAMNet's labels overlap
-  /// ("Vehicle", "Car", "Car passing by" all fire for one car). Summing would
-  /// reward categories for having many near-synonymous labels, not for being
-  /// more likely.
+  /// One score per category: the highest score among its member labels.
   Map<String, double> categoryScores(Float32List scores) => {
     for (final MapEntry(key: name, value: idx) in _labelsByCategory.entries)
       name: idx.fold(0.0, (best, i) => scores[i] > best ? scores[i] : best),
@@ -119,24 +93,6 @@ class SourceCategoryMap {
 }
 
 /// Classifies the audio of each measurement window.
-///
-/// ## What is kept
-///
-/// The model needs one frame of audio at a time, so this class holds up to
-/// 0.975 s of 16 kHz samples in memory, overwritten as each frame is passed
-/// to the model. Nothing else is retained: per-category score totals
-/// accumulate, and the audio does not. No frame is written to storage or
-/// sent off the device. This qualifies, rather than breaks, the privacy
-/// design: the level meter keeps no audio at all, and the classifier keeps
-/// under a second of it transiently.
-///
-/// ## Keeping up
-///
-/// Inference runs asynchronously. If a frame is ready while the previous one
-/// is still being scored, the new frame is dropped and counted rather than
-/// queued: a queue would grow without bound on a phone that cannot keep up,
-/// and a backlog of audio is exactly what the privacy design avoids holding.
-/// [framesDropped] makes that visible for experiment M8.
 class WindowClassifier {
   WindowClassifier({required this.model, required this.categories})
     : _frame = Float32List(model.frameLength);
@@ -158,7 +114,7 @@ class WindowClassifier {
 
   int get framesDropped => _dropped;
 
-  /// Feeds 48 kHz samples. Returns immediately; scoring happens behind it.
+  /// Feeds 48 kHz samples; scoring happens asynchronously.
   void add(Int16List samples) {
     if (!enabled) return;
     final scaled = Float32List(samples.length);
@@ -199,22 +155,15 @@ class WindowClassifier {
       }
       _frames++;
     } on Exception {
-      // A failed inference loses one frame's opinion, not the measurement.
+      // A failed inference drops one frame.
       _dropped++;
       _windowDropped++;
     } finally {
-      // The copy handed to the model is released here; nothing keeps it.
       _busy = false;
     }
   }
 
-  /// The source for the window just completed, and a fresh start for the
-  /// next. Null when nothing was classified (disabled, or every frame
-  /// dropped), so the reading carries no source rather than a guess.
-  ///
-  /// A frame still being scored when the window closes counts towards the
-  /// next window: at most 0.975 s of one window's audio is attributed to
-  /// its neighbour.
+  /// Returns the source for the completed window, or null if none was classified.
   SourceClassification? takeWindow() {
     if (_frames == 0) {
       _reset();
@@ -259,7 +208,7 @@ class WindowClassifier {
     _frames = 0;
   }
 
-  /// Clears audio and totals, for example when measurement stops.
+  /// Clears audio and totals.
   void reset() {
     _reset();
     _decimator.reset();

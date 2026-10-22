@@ -14,64 +14,37 @@ class MeasuredWindow {
     required this.clippedSamples,
   });
 
-  /// When the window began, in UTC, derived from the sample count rather than
-  /// the wall clock (see [LevelMeter]).
+  /// Window start time in UTC, derived from the sample count.
   final DateTime start;
 
   final Duration duration;
 
-  /// A-weighted equivalent continuous level over the whole window: the energy
-  /// average, which is the quantity cumulative dose is built from.
+  /// A-weighted equivalent continuous level over the window.
   final double laeqDb;
 
-  /// The loudest 125 ms within the window, in dB(A).
-  ///
-  /// 125 ms is the "fast" time constant of IEC 61672-1. A sound level meter's
-  /// LAFmax applies an exponential average with that constant; this takes the
-  /// maximum of consecutive 125 ms energy averages instead. The two agree for
-  /// steady sounds and differ for short impulses, where a block can split an
-  /// event across two blocks and under-read it. It is labelled an
-  /// approximation for that reason.
+  /// Approximate maximum 125 ms ("fast") level, in dB(A).
   final double maxFastDb;
 
-  /// Samples at the converter's limits. Any clipping means the true level was
-  /// higher than the one reported, so [laeqDb] is then a lower bound.
+  /// Number of clipped samples; clipping makes [laeqDb] a lower bound.
   final int clippedSamples;
 
   bool get isClipped => clippedSamples > 0;
 }
 
-/// What one call to [LevelMeter.process] produced.
+/// Output from one call to [LevelMeter.process].
 class MeterOutput {
   const MeterOutput(this.liveLevelsDb, this.windows);
 
   static const empty = MeterOutput([], []);
 
-  /// One-second A-weighted levels, for display.
+  /// One-second A-weighted levels for display.
   final List<double> liveLevelsDb;
 
   /// Windows completed during this call.
   final List<MeasuredWindow> windows;
 }
 
-/// Turns a stream of audio samples into A-weighted levels.
-///
-/// ## Privacy by construction
-///
-/// Each run of samples is filtered, squared and added to three running sums,
-/// and then nothing more is kept. The meter has no sample buffer. Its memory
-/// does not grow with the length of the recording, and no audio exists inside it
-/// that could be uploaded, stored or reconstructed. That is the FR-03 guarantee
-/// that raw audio never leaves the device, expressed as a property of the data
-/// structure rather than as a promise in the code that calls it.
-///
-/// ## Timing from samples, not the clock
-///
-/// Window start times are computed as [startedAt] plus samples counted divided
-/// by the sample rate. The device clock can jump when the network corrects it,
-/// whereas the sample count measures exactly the audio that was analysed. The
-/// limitation is that audio the platform drops is not counted, so a dropped
-/// buffer shifts later windows earlier by its length.
+/// Turns audio samples into A-weighted levels without retaining audio.
 class LevelMeter {
   LevelMeter({
     required this.sampleRate,
@@ -108,7 +81,7 @@ class LevelMeter {
   double _blockMaxMeanSquare = 0;
   int _clipped = 0;
 
-  /// Time analysed so far in the current window.
+  /// Time analysed in the current window.
   Duration get elapsedInWindow =>
       Duration(microseconds: (_windowCount * 1e6 / sampleRate).round());
 
@@ -136,8 +109,7 @@ class LevelMeter {
         _liveCount = 0;
       }
 
-      // A block also closes at a window boundary, so no block straddles two
-      // windows and every window's maximum comes from its own audio.
+      // Close a block at window boundaries so it does not straddle windows.
       final windowComplete = _windowCount == _windowLength;
       if (_blockCount == _blockLength || windowComplete) {
         _blockMaxMeanSquare = math.max(

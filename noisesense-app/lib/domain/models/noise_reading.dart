@@ -1,17 +1,6 @@
-/// One aggregated measurement window, as produced on the device.
-///
-/// Raw audio never reaches this class. By the time a [NoiseReading] exists the
-/// audio buffer has already been discarded, and only these numbers remain
-/// (603: FR-03). This is the privacy guarantee expressed in the type system.
+/// One aggregated measurement window; contains no raw audio.
 class NoiseReading {
-  /// Creates a reading. Throws [ArgumentError] for values that cannot be real.
-  ///
-  /// [timestamp] is normalised to UTC and truncated to whole seconds. That
-  /// truncation is deliberate: the backend stores readings under a sort key of
-  /// `TS#` plus a second-precision timestamp, and uses that key to recognise a
-  /// replayed submission as a duplicate (603: FR-06). Two readings in the same
-  /// second would therefore collide, so the measurement window must be at
-  /// least one second long.
+  /// Creates a reading; normalises [timestamp] to whole UTC seconds.
   NoiseReading({
     required DateTime timestamp,
     required this.dbA,
@@ -28,17 +17,16 @@ class NoiseReading {
     }
   }
 
-  /// Start of the measurement window, UTC, whole seconds.
+  /// Window start time, UTC, whole seconds.
   final DateTime timestamp;
 
-  /// A-weighted level reported for the window, in dB(A).
+  /// A-weighted level for the window, in dB(A).
   final double dbA;
 
-  /// A-weighted equivalent continuous level over the window, in dB(A), when
-  /// available. Preferred for dose calculation because it is energy-based.
+  /// Energy-based equivalent continuous level, when available.
   final double? laeq;
 
-  /// Dominant source predicted by the on-device classifier (603: FR-09).
+  /// Dominant predicted noise source.
   final String? classLabel;
 
   /// Classifier confidence for [classLabel], from 0 to 1.
@@ -49,8 +37,7 @@ class NoiseReading {
     return DateTime.utc(u.year, u.month, u.day, u.hour, u.minute, u.second);
   }
 
-  /// Sanity bounds only, to catch programming errors and corrupt data. They
-  /// are not a claim about what a phone microphone can measure accurately.
+  /// Validates that a level is finite and within sane bounds.
   static void _requireLevel(double value, String name) {
     if (!value.isFinite || value < 0 || value > 200) {
       throw ArgumentError.value(

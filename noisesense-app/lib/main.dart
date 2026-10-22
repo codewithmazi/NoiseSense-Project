@@ -22,32 +22,14 @@ import 'presentation/view_models/auth_view_model.dart';
 import 'presentation/view_models/dashboard_view_model.dart';
 import 'presentation/view_models/measurement_view_model.dart';
 
-/// Composition root: the one place where concrete implementations are chosen.
-///
-/// Every dependency is constructed here and passed downwards. Nothing below
-/// this function reaches for a global, a singleton or a service locator, which
-/// is why each view model can be built in a test with a fake repository and no
-/// setup at all.
-///
-/// It is also where the layering becomes visible. This function names
-/// `CognitoUserPool` and `NoiseApiClient`; no screen or view model does. The
-/// AWS dependency is confined to the data layer and to these few lines, so the
-/// lock-in mitigation argued for in the 602 report (Opara-Martins et al.,
-/// 2016) is structural rather than aspirational: replacing the provider means
-/// supplying different implementations of the same two interfaces here.
+/// Composition root: constructs and wires concrete dependencies.
 void main() {
-  // Must come first. AndroidMeasurementService registers a platform-channel
-  // handler when it is constructed, below, and that needs the engine bindings.
-  // runApp() would create them, but only after this function has built every
-  // dependency. Leaving this out crashed the first build on the S9+ before
-  // anything was drawn; the unit tests could not catch it because the test
-  // framework always initialises the bindings itself.
+  // Required before registering platform-channel handlers.
   WidgetsFlutterBinding.ensureInitialized();
 
   const config = AppConfig.fromEnvironment;
 
-  // A build without its configuration cannot work, so it says so immediately
-  // instead of presenting a sign-in screen that fails on the first request.
+  // Fail fast if required build configuration is missing.
   if (!config.isComplete) {
     runApp(const _ConfigurationErrorApp(config: config));
     return;
@@ -58,8 +40,7 @@ void main() {
   final pool = CognitoUserPool(
     config.userPoolId,
     config.userPoolClientId,
-    // Without this the package keeps tokens in memory and the user signs in
-    // again on every launch.
+    // Persist tokens across launches.
     storage: SecureCognitoStorage(),
   );
 
@@ -73,8 +54,7 @@ void main() {
 
   final api = NoiseApiClient(
     baseUrl: config.apiBaseUrl,
-    // The same object supplies tokens and handles sessions, but the API client
-    // only ever sees it as a TokenProvider, so it cannot sign the user out.
+    // API client only sees authService as a TokenProvider.
     tokens: authService,
   );
 
@@ -82,17 +62,14 @@ void main() {
 
   final auth = AuthViewModel(authService);
 
-  // One instance for the app's lifetime: it owns the platform channel's
-  // handler, and a second instance would silently replace the first.
+  // Single instance: owns the platform-channel handler.
   final measurementService = AndroidMeasurementService();
 
   runApp(
     NoiseSenseApp(
       auth: auth,
       createDashboard: () {
-        // Built per sign-in and disposed at sign-out, along with the
-        // dashboard, so each user's queue is opened only while they are
-        // signed in.
+        // Built per sign-in and disposed at sign-out.
         final sync = SyncEngine(
           store: DeferredOutboxStore(() async {
             final userId = await authService.currentUserId();
@@ -106,11 +83,10 @@ void main() {
         final dashboard = DashboardViewModel(
           repository: api,
           sync: sync,
-          // A rejected token ends the session through the auth view model,
-          // so the dashboard never has to know what a 401 is.
+          // Ends the session when a token is rejected.
           onSessionExpired: auth.sessionExpired,
         );
-        // Sends anything left unsent from a previous session.
+        // Sync any unsent readings from a previous session.
         unawaited(sync.start());
         return dashboard;
       },
@@ -133,14 +109,7 @@ void main() {
   );
 }
 
-/// Shown when the build is missing its `--dart-define` values.
-///
-/// A deliberate screen rather than a thrown exception. The usual outcome of a
-/// misconfigured build is an unexplained failure at the first network call,
-/// which sends the developer looking in the wrong place. Naming the missing
-/// keys turns a confusing session into a ten-second fix, and in the Learner
-/// Lab, where identifiers change with every redeploy, this is the most likely
-/// mistake there is.
+/// Shown when required `--dart-define` values are missing.
 class _ConfigurationErrorApp extends StatelessWidget {
   const _ConfigurationErrorApp({required this.config});
 
