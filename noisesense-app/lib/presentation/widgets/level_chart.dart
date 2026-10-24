@@ -5,18 +5,7 @@ import '../exposure_tone.dart';
 import '../formatters.dart';
 import '../theme/app_theme.dart';
 
-/// Bar chart of recent readings, oldest on the left, after the History
-/// wireframe.
-///
-/// Each bar is one reading's LAeq, coloured by exposure tone, on a fixed
-/// 30 to 100 dB(A) axis so charts from different days are comparable. The
-/// threshold is drawn as a line, so "which minutes went over" can be read
-/// without counting.
-///
-/// The chart is an overview; the list beneath it carries the exact values.
-/// For a screen reader it is summarised in one sentence (range and how many
-/// readings were over) rather than read bar by bar, which at 100 bars would
-/// be unusable.
+/// Bar chart of recent readings, oldest on the left, after the History wireframe.
 class LevelChart extends StatelessWidget {
   const LevelChart({super.key, required this.readings, required this.limitDb});
 
@@ -52,10 +41,7 @@ class LevelChart extends StatelessWidget {
             ),
           ),
           const SizedBox(height: AppTheme.spaceXs),
-          // Each label takes half the width and wraps within it. Found by the
-          // large-text test: readings from an earlier day carry a date
-          // ("16 Oct, 14:50"), and at 2x text two of those side by side
-          // overflowed by 299 px.
+          // Each label takes half the width and wraps within it.
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [

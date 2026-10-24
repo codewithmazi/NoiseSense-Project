@@ -40,8 +40,7 @@ class MeasurementService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == ACTION_STOP) {
-            // Stop pressed in the notification. Dart is told, so it stops
-            // capture rather than carrying on with no service behind it.
+            // Stop pressed in the notification.
             onStopRequested?.invoke()
             stopSelf()
             return START_NOT_STICKY
@@ -57,9 +56,7 @@ class MeasurementService : Service() {
         } else {
             startForeground(NOTIFICATION_ID, notification)
         }
-        // Not sticky: if Android kills the process, the Dart capture is gone
-        // too, and restarting an empty service would show a notification
-        // claiming to measure while nothing is.
+        // Not sticky: a restarted service would have no Dart capture behind it.
         return START_NOT_STICKY
     }
 
@@ -77,8 +74,7 @@ class MeasurementService : Service() {
     private fun buildNotification(): Notification {
         val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            // Low importance: shown, but without sound or vibration. A noise
-            // monitor that made a noise every time it started would be absurd.
+            // Low importance: shown, but without sound or vibration.
             manager.createNotificationChannel(
                 NotificationChannel(
                     CHANNEL_ID,

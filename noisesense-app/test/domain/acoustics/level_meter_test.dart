@@ -45,16 +45,14 @@ void main() {
     test('digital silence has a finite floor, not negative infinity', () {
       final floor = MicrophoneCalibration.androidCddNominal.noiseFloorDb;
       expect(floor.isFinite, isTrue);
-      // About -101 dBFS for 16-bit audio, so roughly 11 dB SPL here: far
-      // below anything a phone microphone can resolve in practice.
+      // About -101 dBFS, roughly 11 dB SPL here.
       expect(floor, closeTo(11.2, 0.2));
     });
   });
 
   group('golden levels', () {
     test('the CDD reference tone reads 90.0 dB(A)', () {
-      // The defining calibration point: 1 kHz, where A-weighting is 0 dB,
-      // at the RMS the CDD associates with 90 dB SPL.
+      // The calibration point: 1 kHz at the CDD reference RMS.
       final meter = _meter();
       final out = meter.process(_sine(1000, 2500, const Duration(minutes: 1)));
       expect(out.windows, hasLength(1));
@@ -62,8 +60,7 @@ void main() {
     });
 
     test('a 100 Hz tone at the same RMS reads 19.1 dB lower', () {
-      // A-weighting at 100 Hz is -19.1 dB. This is the property that stops
-      // a bus engine's rumble being reported as louder than it is heard.
+      // A-weighting at 100 Hz is -19.1 dB.
       final meter = _meter();
       final out = meter.process(_sine(100, 2500, const Duration(minutes: 1)));
       expect(out.windows.single.laeqDb, closeTo(90.0 - 19.1, 0.1));
@@ -109,10 +106,7 @@ void main() {
     });
 
     test('results do not depend on how the audio is chunked', () {
-      // The platform delivers audio in buffers of whatever size it likes.
-      // Feeding the same signal in one piece, in small prime-sized pieces and
-      // one sample at a time must give identical windows, or the meter's
-      // output would vary with the phone's buffer size.
+      // Results must not depend on buffer size.
       final signal = _sine(440, 3000, const Duration(seconds: 2));
       List<MeasuredWindow> run(int chunk) {
         final meter = _meter(window: const Duration(seconds: 1));
@@ -148,9 +142,7 @@ void main() {
 
   group('energy averaging', () {
     test('one loud second in a quiet minute: LAeq is the energy average', () {
-      // 1 s at 94 dB and 59 s of near silence. The energy average is
-      // 94 - 10*log10(60) = 76.2 dB, not the arithmetic mean of the levels,
-      // and the fast maximum still shows the 94 dB event.
+      // 1 s at 94 dB in a silent minute: the energy average is 76.2 dB.
       final loudRms = 2500 * math.pow(10, 4 / 20).toDouble(); // 90 + 4 dB
       final meter = _meter();
       meter.process(_sine(1000, loudRms, const Duration(seconds: 1)));

@@ -4,11 +4,6 @@ import 'package:noise_sense/domain/repositories/auth_repository.dart';
 import 'package:noise_sense/presentation/view_models/auth_view_model.dart';
 
 /// A scripted [AuthRepository].
-///
-/// Hand-written rather than generated with a mocking package. It is a handful
-/// of methods, and writing it means the test suite has no code-generation step
-/// to run in CI. It also records calls, so a test can assert what the view
-/// model asked for and not only what it ended up showing.
 class _FakeAuthRepository implements AuthRepository {
   _FakeAuthRepository();
 
@@ -108,8 +103,7 @@ void main() {
 
   group('startup', () {
     test('status is unknown before the stored session has been checked', () {
-      // The splash state. Without it the sign-in form would flash up and then
-      // be replaced for a user who is already signed in.
+      // The splash state.
       expect(viewModel.status, AuthStatus.unknown);
     });
 
@@ -148,8 +142,7 @@ void main() {
     });
 
     test('the email address is trimmed before being sent', () async {
-      // A trailing space from a paste or an autocorrect would otherwise be
-      // sent as part of the username and fail with "incorrect password".
+      // A trailing space from a paste or an autocorrect would otherwise be sent as part of the username and fail with "incorrect password".
       await viewModel.signIn(email: '  a@b.com  ', password: 'Passw0rd');
       expect(repository.lastEmail, 'a@b.com');
     });
@@ -167,9 +160,7 @@ void main() {
     test(
       'an unconfirmed account is routed to confirmation, not an error',
       () async {
-        // The behaviour this exists to protect: Cognito reports an unconfirmed
-        // account as a failed sign-in, but to the user it is an unfinished
-        // registration. Showing it as an error would leave them stuck.
+        // The behaviour this exists to protect.
         repository.nextError = const ConfirmationRequiredException(
           'needs confirming',
         );
@@ -187,8 +178,7 @@ void main() {
     );
 
     test('the notice does not claim a new code has been sent', () async {
-      // Guards a specific wording decision. No code is resent at this point,
-      // so promising one would leave the user waiting for nothing.
+      // Guards a specific wording decision.
       repository.nextError = const ConfirmationRequiredException(
         'needs confirming',
       );
@@ -208,16 +198,14 @@ void main() {
     });
 
     test('busy is cleared after a failure, not just after a success', () async {
-      // The defect this prevents: a submit button left spinning for ever
-      // because the busy flag was only reset on the happy path.
+      // The defect this prevents: a submit button left spinning for ever because the busy flag was only reset on the happy path.
       repository.nextError = const UnauthorisedException('no');
       await viewModel.signIn(email: 'a@b.com', password: 'x');
       expect(viewModel.isBusy, isFalse);
     });
 
     test('a second submission while one is in flight is ignored', () async {
-      // Double-tap protection at the view model, not only at the button, so
-      // it holds regardless of how the action was triggered.
+      // Double-tap protection at the view model, not only at the button.
       final first = viewModel.signIn(email: 'a@b.com', password: 'Passw0rd');
       final second = await viewModel.signIn(
         email: 'a@b.com',
@@ -267,9 +255,7 @@ void main() {
     test(
       'confirming returns the user to sign in, since no session is issued',
       () async {
-        // Cognito's ConfirmSignUp only verifies the address; it does not
-        // authenticate. Sending the user to a dashboard would then fail on the
-        // first request.
+        // Cognito's ConfirmSignUp only verifies the address; it does not authenticate.
         final ok = await viewModel.confirm(code: '123456');
         expect(ok, isTrue);
         expect(viewModel.status, AuthStatus.signedOut);
@@ -320,9 +306,7 @@ void main() {
     });
 
     test('the notice does not confirm that an account exists', () async {
-      // The service reports success for unregistered addresses, so a notice
-      // reading "we have sent a code" would be false for them, and true only
-      // for real accounts, which would leak the very thing the backend hides.
+      // The service reports success for unregistered addresses.
       await viewModel.requestPasswordReset(email: 'a@b.com');
       expect(viewModel.notice, startsWith('If an account uses'));
     });
@@ -354,8 +338,7 @@ void main() {
     });
 
     test('the new password is sent exactly as typed, never trimmed', () async {
-      // Trimming a password would silently change it, and the user would
-      // then fail to sign in with the one they believe they set.
+      // Trimming a password would silently change it, and the user would then fail to sign in with the one they believe they set.
       await viewModel.requestPasswordReset(email: 'a@b.com');
       await viewModel.confirmPasswordReset(
         code: '123456',
@@ -425,13 +408,11 @@ void main() {
   });
 
   test('listeners are notified on every state change', () async {
-    // The whole UI is driven by these notifications, so a change that does
-    // not notify is a change the user never sees.
+    // The whole UI is driven by these notifications.
     var notifications = 0;
     viewModel.addListener(() => notifications++);
     await viewModel.signIn(email: 'a@b.com', password: 'Passw0rd');
-    // Once when the request starts and the busy state is set, once when it
-    // finishes.
+    // Once when the request starts and the busy state is set, once when it finishes.
     expect(notifications, 2);
   });
 }

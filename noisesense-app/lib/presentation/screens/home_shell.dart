@@ -8,18 +8,6 @@ import 'settings_screen.dart';
 import 'summary_screen.dart';
 
 /// The signed-in app: four tabs, as in the wireframes.
-///
-/// This replaces an earlier single scrolling dashboard. One long page put the
-/// live level, dose, threshold control and up to 100 history rows in one
-/// column, so the control most users touch least (the threshold) sat between
-/// the two things they look at most. Tabs give each task its own screen, and a
-/// bottom navigation bar is the Material Design pattern for three to five
-/// top-level destinations, which keeps the app consistent with the platform
-/// conventions users already know (Nielsen, 1994: consistency and standards).
-///
-/// An [IndexedStack] keeps every tab alive, so switching tabs keeps each one's
-/// scroll position rather than rebuilding it, and leaving Monitor does not
-/// interrupt the live display.
 class HomeShell extends StatefulWidget {
   const HomeShell({
     super.key,
@@ -44,8 +32,7 @@ class _HomeShellState extends State<HomeShell> {
   @override
   void initState() {
     super.initState();
-    // Loaded once here, not per tab, because all four tabs show the same
-    // readings and settings.
+    // Loaded once here, because all four tabs show the same data.
     widget.dashboard.load();
   }
 

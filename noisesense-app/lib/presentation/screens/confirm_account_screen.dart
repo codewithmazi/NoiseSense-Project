@@ -9,17 +9,6 @@ import '../widgets/message_banner.dart';
 import '../widgets/screen_shell.dart';
 
 /// Entry of the six-digit code Cognito emails after registration.
-///
-/// This screen is the one most likely to trap a user, so it is built to offer
-/// a way out of every dead end: the code can be resent, and the address can be
-/// abandoned if it was mistyped. A confirmation screen with no escape is a
-/// common reason accounts are created and never used.
-///
-/// Pasting is explicitly permitted and `AutofillHints.oneTimeCode` lets
-/// Android offer the code straight from the SMS or notification. Forcing a
-/// user to read six digits from another app and retype them from memory is
-/// exactly the transcription step WCAG 2.2 SC 3.3.8 Accessible Authentication
-/// exists to remove.
 class ConfirmAccountScreen extends StatefulWidget {
   const ConfirmAccountScreen({super.key, required this.auth});
 
@@ -63,9 +52,7 @@ class _ConfirmAccountScreenState extends State<ConfirmAccountScreen> {
                 ),
                 children: [
                   const TextSpan(text: 'Enter the six-digit code we sent to '),
-                  // The address is shown back to the user, because a mistyped
-                  // one is the most likely reason the email never arrives and
-                  // they cannot diagnose that without seeing it.
+                  // The address is shown so the user knows where the code went.
                   TextSpan(
                     text: auth.pendingEmail,
                     style: const TextStyle(
@@ -97,15 +84,11 @@ class _ConfirmAccountScreenState extends State<ConfirmAccountScreen> {
                   textInputAction: TextInputAction.done,
                   onFieldSubmitted: (_) => _submit(),
                   maxLength: 6,
-                  // Strips anything that cannot be part of a code, including
-                  // the spaces that come with a pasted value. Filtering is
-                  // used rather than rejecting the paste, so the user is
-                  // helped instead of corrected.
+                  // Strips anything that cannot be part of a code, including the spaces that come with a pasted value.
                   inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                   style: const TextStyle(
                     fontSize: 24,
-                    // Even digit spacing, so a six-digit code can be checked
-                    // against the email at a glance.
+                    // Even digit spacing, so a six-digit code can be checked against the email at a glance.
                     letterSpacing: 8,
                   ),
                   decoration: const InputDecoration(
@@ -126,9 +109,7 @@ class _ConfirmAccountScreenState extends State<ConfirmAccountScreen> {
               onPressed: auth.isBusy ? null : () => widget.auth.resendCode(),
               child: const Text('Send a new code'),
             ),
-            // The way out. Without this, a user who mistyped their address is
-            // stuck on a screen waiting for an email that will never arrive
-            // (Nielsen, 1994: user control and freedom).
+            // Way back out of this screen.
             TextButton(
               onPressed: auth.isBusy ? null : () => widget.auth.signOut(),
               child: const Text('Use a different email address'),

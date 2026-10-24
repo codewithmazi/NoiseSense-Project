@@ -37,8 +37,7 @@ void main() {
   });
 
   test('suppresses frequencies that would alias below 8 kHz', () {
-    // Anything at or above the new Nyquist (8 kHz) folds back into the band
-    // the classifier hears. These are the measured stopband figures.
+    // Energy above 8 kHz would fold back into the classifier's band.
     final d = Decimator();
     final report = <String>[];
     for (final f in <double>[8000, 9000, 12000, 16000, 20000]) {
@@ -58,8 +57,7 @@ void main() {
   });
 
   test('a real 12 kHz tone is removed rather than folded to 4 kHz', () {
-    // The negative case. Plain one-in-three sampling would turn this into a
-    // full-strength 4 kHz tone that was never in the room.
+    // The negative case.
     final tone = _sine(12000, 48000);
     final naive = Float32List.fromList([
       for (var i = 0; i < tone.length; i += 3) tone[i],

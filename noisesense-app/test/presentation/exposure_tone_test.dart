@@ -16,8 +16,7 @@ void main() {
     });
 
     test('10 dB under is 10%, not 86% as a linear ratio would say', () {
-      // The negative case: a naive 60/70 percentage badly overstates headroom
-      // in the other direction too.
+      // Negative case: a naive percentage also overstates headroom.
       expect(ExposureCalculator.doseFraction(60, 70), closeTo(0.1, 1e-12));
       expect(60 / 70, isNot(closeTo(0.1, 0.5 - 0.1)));
     });

@@ -3,8 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:noise_sense/domain/acoustics/a_weighting_filter.dart';
 
-/// Nominal A-weighting values from the IEC 61672-1 table, in dB, rounded to
-/// 0.1 dB as published.
+/// Nominal A-weighting values from the IEC 61672-1 table, in dB, rounded to 0.1 dB as published.
 final Map<double, double> _iecNominal = {
   31.5: -39.4,
   63: -26.2,
@@ -18,16 +17,13 @@ final Map<double, double> _iecNominal = {
   16000: -6.6,
 };
 
-/// Gain of [filter] at [frequency], measured by passing a sine through it,
-/// rather than evaluated from its coefficients.
+/// Measured gain of [filter] at [frequency], using a sine wave.
 double _measuredGainDb(AWeightingFilter filter, double frequency) {
   final rate = filter.sampleRate;
   filter.reset();
-  // Let the transient decay before measuring. The slowest poles are at
-  // 20.6 Hz, with a time constant under 8 ms, so half a second is ample.
+  // Let the transient decay before measuring.
   final settle = rate ~/ 2;
-  // Measure over a whole number of cycles of the lowest test frequency, so
-  // the mean square is not biased by a partial cycle.
+  // Measure over a whole number of cycles of the lowest test frequency.
   final measure = rate * 2;
   var inSum = 0.0, outSum = 0.0;
   for (var n = 0; n < settle + measure; n++) {
@@ -44,14 +40,7 @@ double _measuredGainDb(AWeightingFilter filter, double frequency) {
 void main() {
   group('reference curve', () {
     test('the analogue formula reproduces the IEC 61672-1 nominal table', () {
-      // Checks the reference itself before anything is checked against it.
-      //
-      // The table's frequencies are nominal labels. IEC 61672-1 evaluates the
-      // weightings at exact base-ten frequencies, 1000 * 10^(n/10), so the
-      // "31.5 Hz" row is really 31.62 Hz. A first version of this test used
-      // the labels literally and failed by 0.12 dB at 31.5 Hz, where the curve
-      // is steepest; the error was in the test, not the formula. The table is
-      // rounded to 0.1 dB, hence the 0.05 dB tolerance.
+      // Checks the reference table first.
       _iecNominal.forEach((nominal, expected) {
         final n = (10 * math.log(nominal / 1000) / math.ln10).round();
         final exact = 1000 * math.pow(10, n / 10).toDouble();
@@ -82,9 +71,7 @@ void main() {
       });
 
       test('matches the analogue curve within 0.1 dB from 20 Hz to 4 kHz', () {
-        // 4 kHz is the upper edge of the band in which the Android CDD asks
-        // for the microphone itself to be flat (±3 dB), so it is the band in
-        // which the filter's accuracy is the limiting factor.
+        // Within 0.1 dB up to 4 kHz, the band the CDD requires to be flat.
         final errors = <String, double>{};
         for (final f in <double>[
           20,
@@ -110,12 +97,7 @@ void main() {
       });
 
       test('reports its high-frequency error rather than hiding it', () {
-        // Above 4 kHz the bilinear transform's frequency warping grows. This
-        // test records how much, so the limitation is quoted from a measurement.
-        // The assertion is only that the error is in the expected direction
-        // (the digital filter reads low) and stays under 3 dB at 10 kHz, the
-        // same size as the microphone tolerance the CDD allows below 4 kHz;
-        // above 4 kHz the CDD allows ±30 dB.
+        // Above 4 kHz the bilinear transform warps frequency more.
         final errors = <String, double>{};
         for (final f in <double>[6300, 8000, 10000, 12500, 16000]) {
           errors['$f'] =
@@ -127,10 +109,7 @@ void main() {
       });
 
       test('the implementation behaves as its coefficients predict', () {
-        // The tests above evaluate the transfer function on paper. This one
-        // passes real sine waves through process(), so a bug in the recursion
-        // itself (a sign, a swapped state variable) cannot hide behind
-        // correct coefficients.
+        // The tests above evaluate the transfer function on paper.
         for (final f in <double>[63, 250, 1000, 4000]) {
           expect(
             _measuredGainDb(filter, f),

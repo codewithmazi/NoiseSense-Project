@@ -9,12 +9,6 @@ import 'package:noise_sense/presentation/theme/app_theme.dart';
 import 'package:noise_sense/presentation/view_models/auth_view_model.dart';
 
 /// Widget tests for the sign-in screen.
-///
-/// These assert the accessibility and error-handling decisions, not the
-/// appearance. Layout changes freely; what must not change is that the fields
-/// carry autofill hints, that paste is not blocked, that a failure is
-/// announced, and that the form cannot be submitted twice. Those are the parts
-/// a redesign would silently break.
 class _StubAuthRepository implements AuthRepository {
   NoiseSenseException? nextError;
   int signInCalls = 0;
@@ -110,9 +104,7 @@ void main() {
   });
 
   testWidgets('nothing blocks pasting into the password field', (tester) async {
-    // Disabling paste is a common habit justified as a security measure. It
-    // fails SC 3.3.8 and in practice pushes users towards shorter, memorable
-    // passwords, so its absence is asserted rather than assumed.
+    // Paste must not be disabled.
     await pumpScreen(tester);
     final password = tester.widget<EditableText>(
       find.byType(EditableText).last,
@@ -227,8 +219,7 @@ void main() {
   testWidgets('a second tap while the request is in flight is ignored', (
     tester,
   ) async {
-    // Prevents the duplicate submission rather than relying on the user not
-    // to try. A cold start can leave the button looking idle for seconds.
+    // Prevents the duplicate submission rather than relying on the user not to try.
     repository.gate = Completer<void>();
     await pumpScreen(tester);
     await tester.enterText(fieldLabelled('Email address'), 'ron@example.com');
@@ -238,8 +229,6 @@ void main() {
     await tester.pump();
 
     // The label is replaced by a spinner, so the wait is visible.
-    // Scoped to the button: the app bar title is also "Sign in", so an
-    // unscoped finder would match that and prove nothing.
     expect(find.byType(CircularProgressIndicator), findsOneWidget);
     expect(
       find.descendant(
@@ -260,8 +249,7 @@ void main() {
 
   testWidgets('the whole screen scrolls, so a raised font size cannot overflow '
       'it (SC 1.4.4)', (tester) async {
-    // Flutter reports an overflow as a rendering error, so this would fail
-    // loudly if the layout were fixed-height.
+    // Flutter reports an overflow as a rendering error.
     tester.view.physicalSize = const Size(411 * 3, 600 * 3);
     tester.view.devicePixelRatio = 3.0;
     addTearDown(tester.view.reset);
@@ -283,8 +271,7 @@ void main() {
 
   testWidgets('a forgotten password can be reset, starting with the address '
       'already typed', (tester) async {
-    // Recognition rather than recall: the user does not type the address
-    // twice.
+    // Recognition rather than recall: the user does not type the address twice.
     await pumpScreen(tester);
     await tester.enterText(fieldLabelled('Email address'), 'ron@example.com');
     await tester.tap(find.text('Forgotten your password?'));

@@ -1,45 +1,4 @@
-"""M1: load test of POST /metrics, against objectives fixed before the run.
-
-PRE-REGISTERED OBJECTIVE (NFR performance efficiency; set 19 Oct 2026 before
-any load was applied, so the result cannot be fitted to the target):
-
-  O1  Sustain >= 20 requests/s on POST /metrics.
-      Why 20: each user uploads one reading a minute, so 20 req/s is 1,200
-      users uploading at once, comfortably above the 1k-user tier in M5.
-  O2  p95 end-to-end latency <= 1,000 ms at up to 10 concurrent clients,
-      measured from the client, so it includes the network from the UK.
-      Why 1 s and not tighter: uploads run in the background from the
-      outbox, so no user waits on them; the binding constraint is
-      throughput, and the latency bound only guards against queueing.
-  O3  Error rate <= 1% at up to 10 concurrent clients.
-      Above 10 the Learner Lab's 10-concurrent-execution Lambda cap is
-      expected to throttle (HTTP 503/429). Those are recorded, not hidden:
-      finding where throttling starts is part of the measurement.
-
-Method
-------
-Closed loop: N worker threads each send a request, wait for the reply, and
-send the next, for a fixed time per step. Steps rise through the concurrency
-levels. Each worker keeps one HTTPS connection alive, as the app does.
-Throughput then follows Little's law, X = N / R: with N requests in flight
-and mean response time R, at most N/R complete per second.
-
-Payload: dbA 50, below the alert threshold, so no SNS alert email is sent per
-request. Timestamps are synthetic and unique (counting up from 2020-01-01),
-because the sort key is second-precision: real "now" timestamps from parallel
-workers would collide and be stored once, so most writes would be skipped.
-2020 timestamps also stay out of recent history and the weekly summary.
-
-Every request triggers the threshold Lambda through EventBridge, which shares
-the account's 10-execution cap with ingest. That is the system as deployed,
-so it is measured as such.
-
-Usage
------
-Set LOADTEST_EMAIL, LOADTEST_PASSWORD (a dedicated synthetic test account),
-CLIENT_ID, API_BASE_URL, and optionally REGION (default us-east-1), then:
-    python loadtest.py --steps 1,2,5,10,15,20 --seconds 30 --out results
-"""
+"""M1: load test of POST /metrics, against objectives fixed before the run."""
 
 import argparse
 import csv
@@ -177,10 +136,7 @@ def main():
 
     peak = max(s["rps_ok"] for s in summaries)
     within = [s for s in summaries if s["concurrency"] <= LAB_CAP]
-    # O2 and O3 are defined at up to LAB_CAP clients. A run made only of
-    # higher steps (the ceiling run, --steps 30,40,60) cannot assess them; an
-    # earlier version took max() of the empty list and crashed after the
-    # measurements had been taken but before the files were written.
+    # O2 and O3 apply only to steps at or below LAB_CAP clients.
     worst_p95 = max((s["p95_ms"] for s in within), default=None)
     worst_err = max((s["error_rate"] for s in within), default=None)
     first_throttle = next((s["concurrency"] for s in summaries if s["error_rate"] > 0), None)

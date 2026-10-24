@@ -8,24 +8,12 @@ import '../widgets/screen_shell.dart';
 import '../widgets/section_label.dart';
 
 /// Tab 3, "Summary".
-///
-/// The wireframe shows a weekly summary produced by the Step Functions
-/// workflow. The app cannot show that yet: the API has no route that returns
-/// the stored weekly summaries, and the history route is capped at 100
-/// readings, so a week cannot be rebuilt on the phone either. Until that route
-/// exists, this screen summarises the readings the app does hold and says
-/// plainly what they cover, rather than presenting a short sample as a week.
-///
-/// The wireframe's "Risk: Moderate" band is deliberately omitted. No
-/// validated mapping from a phone's short personal sample to a health-risk
-/// category was found, and inventing one would present a guess as a finding.
 class SummaryScreen extends StatelessWidget {
   const SummaryScreen({super.key, required this.dashboard});
 
   final DashboardViewModel dashboard;
 
-  /// WHO Environmental Noise Guidelines for the European Region (2018):
-  /// recommended level for road traffic noise, as Lden.
+  /// WHO Environmental Noise Guidelines for the European Region (2018).
   static const double whoRoadTrafficLden = 53;
 
   @override
@@ -91,9 +79,7 @@ class SummaryScreen extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(height: AppTheme.spaceXs),
-                      // The comparison is offered as a guide, with the reason
-                      // it is only a guide, because the two figures are not
-                      // measured the same way.
+                      // The comparison is offered as a guide, with the reason it is only a guide.
                       const Text(
                         'A guide, not a like-for-like comparison: the WHO '
                         'figure is a long-term average outside the home, and '
@@ -126,8 +112,7 @@ class SummaryScreen extends StatelessWidget {
     );
   }
 
-  /// The loudest fast-weighted moment. Each reading's dbA carries its
-  /// window's loudest 125 ms block.
+  /// The loudest fast-weighted moment.
   static double _peak(DashboardViewModel vm) =>
       vm.readings.map((r) => r.dbA).reduce((a, b) => a > b ? a : b);
 }

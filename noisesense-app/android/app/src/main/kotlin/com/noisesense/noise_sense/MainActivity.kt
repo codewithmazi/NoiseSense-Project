@@ -39,9 +39,7 @@ class MainActivity : FlutterActivity() {
                         }
                         result.success(true)
                     } catch (e: Exception) {
-                        // Most likely a background-start restriction or a
-                        // missing permission on Android 14. Dart falls back to
-                        // foreground-only measurement and says so.
+                        // Most likely a background-start restriction or a missing permission on Android 14.
                         result.error("START_FAILED", e.message, null)
                     }
                 }
@@ -50,10 +48,7 @@ class MainActivity : FlutterActivity() {
                     result.success(null)
                 }
                 "requestNotificationPermission" -> {
-                    // Android 13+ asks before showing notifications. The
-                    // result is not awaited: a refusal hides the notification
-                    // from the drawer but does not stop the service or the
-                    // measurement, so nothing downstream depends on it.
+                    // Android 13+ asks before showing notifications.
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
                         checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) !=
                         PackageManager.PERMISSION_GRANTED

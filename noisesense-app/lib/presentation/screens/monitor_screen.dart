@@ -14,10 +14,6 @@ import '../widgets/section_label.dart';
 import '../widgets/sync_status_view.dart';
 
 /// Tab 1, "Monitor": the wireframes' Home — Live Monitor screen.
-///
-/// Ordered as in the wireframe: the live level, then the dose it adds up to,
-/// then the latest readings, with the one primary action at the bottom where
-/// a thumb reaches it on a large phone.
 class MonitorScreen extends StatelessWidget {
   const MonitorScreen({
     super.key,
@@ -145,9 +141,7 @@ class MonitorScreen extends StatelessWidget {
   }
 }
 
-/// Progress to the next saved reading, and whether measuring continues with
-/// the screen off. Both answer questions the user would otherwise guess at
-/// (Nielsen, 1994: visibility of system status).
+/// Progress to the next saved reading, and whether measuring continues with the screen off.
 class _WindowProgress extends StatelessWidget {
   const _WindowProgress({required this.measurement});
 
@@ -196,12 +190,6 @@ class _WindowProgress extends StatelessWidget {
 }
 
 /// The wireframe's "Source: Road traffic 87%" chip.
-///
-/// Shows the last completed minute's source, so it changes once a minute,
-/// not every second: the label describes a whole window, and a label that
-/// flickered would imply a precision the classifier does not have. The
-/// confidence is always shown with it, and "Other" is shown without one,
-/// because "nothing recognised" has no score to report.
 class _SourceChip extends StatelessWidget {
   const _SourceChip({
     required this.measurement,

@@ -5,20 +5,6 @@ import '../formatters.dart';
 import '../theme/app_theme.dart';
 
 /// Control for the user's alert threshold (603: FR-05).
-///
-/// The fixed 70 dB(A) trigger in the 602 back end is replaced here by a value
-/// the user owns. The justification is not just preference: a threshold useful
-/// to someone working beside a motorway is useless to someone tracking their
-/// bedroom, and a system that alerts constantly trains its user to ignore it.
-///
-/// A slider is used rather than a text field because the value is approximate
-/// and bounded, and dragging communicates the range without the user having to
-/// discover it by being rejected. The exact figure is shown alongside, so the
-/// imprecision of dragging does not hide what has actually been selected.
-///
-/// Discrete steps of 1 dB are enforced, matching the resolution the figure is
-/// displayed at. A continuous slider would let the user select 68.3 dB(A) and
-/// then be shown "68 dB(A)", which is a small lie about what was saved.
 class ThresholdCard extends StatefulWidget {
   const ThresholdCard({
     super.key,
@@ -41,18 +27,12 @@ class ThresholdCard extends StatefulWidget {
 
 class _ThresholdCardState extends State<ThresholdCard> {
   /// The value under the user's finger.
-  ///
-  /// Held locally so the slider and its label track the drag at once, while
-  /// the saved value stays whatever the service last confirmed. Driving the
-  /// slider from the saved value alone would make it lag behind the finger by
-  /// a network round trip, which feels broken.
   double? _dragging;
 
   @override
   void didUpdateWidget(ThresholdCard oldWidget) {
     super.didUpdateWidget(oldWidget);
-    // Once the service confirms a change, drop the local value so the card
-    // shows the authoritative one again.
+    // Drop the local value once the service confirms the change.
     if (oldWidget.settings?.thresholdDbA != widget.settings?.thresholdDbA) {
       _dragging = null;
     }
@@ -114,29 +94,21 @@ class _ThresholdCardState extends State<ThresholdCard> {
               ),
               min: ExposureSettings.minThresholdDbA,
               max: ExposureSettings.maxThresholdDbA,
-              // One division per decibel, so every selectable value is one
-              // that can be displayed exactly.
+              // One division per decibel.
               divisions:
                   (ExposureSettings.maxThresholdDbA -
                           ExposureSettings.minThresholdDbA)
                       .round(),
-              // Read out as the user drags, so the value is available without
-              // sight of the label.
+              // Value read out to screen readers while dragging.
               label: Formatters.threshold(value),
               semanticFormatterCallback: (v) => '${v.round()} decibels',
               onChanged: widget.isSaving
                   ? null
                   : (v) => setState(() => _dragging = v.roundToDouble()),
-              // Saved on release rather than on change. Dragging across the
-              // range emits dozens of values, and sending each one would be
-              // dozens of writes for one decision. This matters in the
-              // Learner Lab, where Lambda is capped at 10 concurrent
-              // executions.
+              // Saved on release rather than on change.
               onChangeEnd: widget.isSaving ? null : widget.onChanged,
             ),
-            // The default is labelled as a default, rather than presented as
-            // though the user had chosen it. Otherwise there is no way to
-            // tell "I picked 70" from "nobody has picked anything".
+            // The default is labelled as a default.
             Text(
               settings.isDefault
                   ? 'Currently using the default level.'

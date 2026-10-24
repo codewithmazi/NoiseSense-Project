@@ -1,12 +1,8 @@
 /// Account and session operations the app needs.
-
 /// Like [NoiseRepository], this interface names no identity provider.
-
 /// Every method reports failure by throwing a `NoiseSenseException`, so the UI distinguishes "wrong password" from "no signal" without inspecting status codes.
-
 abstract interface class AuthRepository {
   /// Registers a new account. The service then emails a confirmation code.
-
   /// Throws [AccountExistsException] if the email is already registered, or [InvalidRequestException] if the password fails the policy.
   Future<void> signUp({required String email, required String password});
 

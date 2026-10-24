@@ -1,23 +1,4 @@
-"""M5: monthly cost of NoiseSense at 1k, 10k and 100k users.
-
-Answers the 602 criticism that "$0.49 is the cost of an empty system".
-
-Every input is one of three kinds, labelled in INPUTS below:
-  MEASURED  - from a test actually run (M1, M2, device tests)
-  PRICE     - AWS list price, us-east-1, from the AWS Price List API
-              (offers/v1.0/aws/<service>/current/us-east-1/index.json,
-              downloaded 19 Oct 2026; publication dates noted per service)
-              or, for the Cognito free tier, aws.amazon.com/cognito/pricing
-  ASSUMED   - a usage assumption, stated so it can be challenged; the
-              sensitivity table shows how much each one matters
-
-Free tiers: only the permanent ones are applied (Lambda 1M requests and
-400,000 GB-s, Cognito 10,000 MAU, DynamoDB 25 GB storage, SNS 1,000 emails
-and 1M publishes, 100 GB data transfer out). The 12-month API Gateway free
-tier is ignored, because a service is costed for its life, not its first year.
-
-Usage:  python cost_model.py > m5_results.txt
-"""
+"""M5: monthly cost of NoiseSense at 1k, 10k and 100k users."""
 
 import math
 
@@ -84,9 +65,7 @@ PER_EXTRA_ITEM_MS = 5.0  # ASSUMED: added handler time per extra reading in a ba
 
 
 def month(users, hours, cognito_plan="essentials", batch=1):
-    """batch > 1 models a design NOT built: the outbox uploading `batch`
-    readings per request (one BatchWriteItem, one EventBridge event, one
-    threshold invocation per request). batch=1 is the system as deployed."""
+    """batch > 1 models upload batching, which is not built."""
     readings = users * hours * v("readings_per_hour") * DAYS
     uploads = readings / batch
     gets = users * v("history_calls_day") * DAYS * 2          # /history + /settings
@@ -102,9 +81,7 @@ def month(users, hours, cognito_plan="essentials", batch=1):
     lam = (max(0, invocations - FREE["lambda_req"]) * P["lambda_request"]
            + max(0, gb_s - FREE["lambda_gb_s"]) * P["lambda_gb_s"])
 
-    # DynamoDB: 1 WRU per reading (<1 KB); threshold GetItem 0.5 RRU
-    # (eventually consistent); /history query of ~22 KB = 6 x 4 KB at 0.5 each;
-    # /settings GetItem 0.5.
+    # DynamoDB: 1 WRU per reading (<1 KB).
     rru = readings * 0.5 + users * v("history_calls_day") * DAYS * (
         math.ceil(v("history_bytes") / 4096) * 0.5 + 0.5)
     stored_gb = users * hours * v("readings_per_hour") * DAYS * v("storage_months") * v("item_bytes") / 1e9
@@ -133,8 +110,7 @@ def month(users, hours, cognito_plan="essentials", batch=1):
 
 
 def weekly_scan_cost(users, hours):
-    """The summary Lambda scans the whole table weekly. Cost and time, by
-    month 12, if storage is not expired."""
+    """The summary Lambda scans the whole table weekly."""
     gb = users * hours * 60 * DAYS * v("storage_months") * v("item_bytes") / 1e9
     rru = gb * 1e9 / 4096 * 0.5
     return rru * P["ddb_rru"] * 4.35, gb

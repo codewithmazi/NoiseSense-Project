@@ -6,10 +6,9 @@ enum SubmitOutcome {
   /// The service stored the reading for the first time.
   stored,
 
-  /// the
+  /// the service already held the reading
   duplicate,
 }
-
 
 abstract interface class NoiseRepository {
   /// The user's recent readings, newest first.
@@ -21,6 +20,6 @@ abstract interface class NoiseRepository {
   /// The user's current exposure settings.
   Future<ExposureSettings> settings();
 
-  /// Changes the alert threshold and returns the settings now in action.
+  /// Changes the alert threshold and returns the settings now in force.
   Future<ExposureSettings> updateThreshold(double thresholdDbA);
 }

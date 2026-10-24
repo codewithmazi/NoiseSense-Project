@@ -6,26 +6,14 @@ import '../api/token_provider.dart';
 import 'cognito_rest_api.dart';
 
 /// Cognito-backed authentication.
-///
-/// Implements both [AuthRepository], for account and session operations, and
-/// [TokenProvider], so the API client can obtain a bearer token without
-/// knowing anything about Cognito.
-///
-/// The work is split deliberately. Sign-in goes through
-/// `amazon_cognito_identity_dart_2`, which implements SRP so the password
-/// never leaves the device. Sign-up, confirmation and resend go through
-/// [CognitoRestApi], because the Week 1 spike found the package's error
-/// reporting for those operations too vague to drive a usable interface.
 class CognitoAuthService implements AuthRepository, TokenProvider {
-  /// Dart exposes a private field formal without its underscore, so callers
-  /// write `pool:` and `api:` while the fields stay private.
+  /// Private field formals: callers write `pool:` and `api:`.
   CognitoAuthService({required this._pool, required this._api});
 
   final CognitoUserPool _pool;
   final CognitoRestApi _api;
 
-  /// Cached so repeated API calls do not re-read secure storage. The package
-  /// refreshes the underlying tokens when they expire.
+  /// Cached so repeated API calls do not re-read secure storage.
   CognitoUser? _user;
 
   // ----------------------------------------------------------- AuthRepository
@@ -81,8 +69,7 @@ class CognitoAuthService implements AuthRepository, TokenProvider {
   @override
   Future<void> signOut() async {
     final user = _user ?? await _pool.getCurrentUser();
-    // Clears the locally stored session. It does not revoke the refresh token
-    // server-side, so the sign-out is local only; noted as a limitation.
+    // Clears the locally stored session.
     await user?.signOut();
     _user = null;
   }
@@ -92,26 +79,19 @@ class CognitoAuthService implements AuthRepository, TokenProvider {
     try {
       return await _session() != null;
     } on NoiseSenseException {
-      // At startup an unusable session is simply "not signed in"; the user is
-      // shown the sign-in screen rather than an error.
+      // At startup an unusable session is simply "not signed in".
       return false;
     }
   }
 
   // ------------------------------------------------------------ TokenProvider
 
-  /// The Cognito subject (`sub`) from the access token: a UUID that never
-  /// changes for the account, unlike the email address, which a user can
-  /// change. The token was issued to this device by Cognito, so its payload is
-  /// read without re-verifying the signature; it is only used as a local
-  /// storage key, never to authorise anything.
+  /// The Cognito subject (`sub`) from the access token.
   @override
   Future<String?> currentUserId() async =>
       (await _session())?.getAccessToken().getSub();
 
-  /// Read from the ID token, which carries the `email` claim; the access token
-  /// does not. It is only displayed on this device, never sent anywhere, so
-  /// this does not reverse the decision to send the access token to the API.
+  /// Read from the ID token, which carries the `email` claim; the access token does not.
   @override
   Future<String?> currentEmail() async {
     final payload = (await _session())?.getIdToken().payload;
@@ -122,13 +102,11 @@ class CognitoAuthService implements AuthRepository, TokenProvider {
   @override
   Future<String?> bearerToken() async {
     final session = await _session();
-    // See TokenProvider.bearerToken: the access token is sent rather than the
-    // ID token, so no identity attributes are disclosed to the API.
+    // See TokenProvider.bearerToken.
     return session?.getAccessToken().getJwtToken();
   }
 
   /// Restores the stored session, refreshing it if the tokens have expired.
-  /// Returns null when nobody is signed in.
   Future<CognitoUserSession?> _session() async {
     final user = _user ??= await _pool.getCurrentUser();
     if (user == null) return null;
@@ -152,8 +130,7 @@ class CognitoAuthService implements AuthRepository, TokenProvider {
   NoiseSenseException _mapSignInError(CognitoClientException e) {
     final detail = e.message ?? e.code ?? 'Sign-in failed';
     return switch (e.code) {
-      // Wrong password and unknown account are reported identically, so the
-      // API cannot be used to enumerate registered email addresses.
+      // Wrong password and unknown account are reported identically.
       'NotAuthorizedException' || 'UserNotFoundException' =>
         const UnauthorisedException('Incorrect email address or password.'),
       'UserNotConfirmedException' => ConfirmationRequiredException(detail),

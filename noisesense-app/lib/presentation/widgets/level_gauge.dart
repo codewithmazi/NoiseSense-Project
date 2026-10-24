@@ -7,12 +7,6 @@ import '../formatters.dart';
 import '../theme/app_theme.dart';
 
 /// The Monitor screen's ring gauge, after the hi-fi wireframe.
-///
-/// The ring fills in proportion to the level across a fixed 30 to 100 dB(A)
-/// range and takes the exposure tone's colour. The number in the centre is
-/// the reading itself; the ring is only an at-a-glance cue, so it is excluded
-/// from the accessibility tree and the whole gauge is announced as one
-/// sentence instead.
 class LevelGauge extends StatelessWidget {
   const LevelGauge({
     super.key,

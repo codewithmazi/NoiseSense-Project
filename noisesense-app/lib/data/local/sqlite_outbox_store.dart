@@ -5,29 +5,10 @@ import '../../domain/models/noise_reading.dart';
 import '../../domain/repositories/outbox_store.dart';
 
 /// [OutboxStore] in a SQLite database on the device.
-///
-/// SQLite rather than a key-value store because the outbox needs exactly what
-/// it provides: atomic writes that survive the process being killed
-/// mid-write, a uniqueness constraint that makes [add] idempotent at the
-/// storage layer, and ordered queries. A JSON file rewritten on every change
-/// would need all three built by hand, and would lose the queue if the phone
-/// died halfway through a write.
-///
-/// ## One database per user
-///
-/// The file is named after the signed-in user's Cognito subject. Without
-/// that, readings queued by one account and still pending at sign-out would
-/// be uploaded under the next account to sign in on the same phone: a
-/// privacy failure, and corrupted data for both users. Separate files make
-/// that impossible rather than merely unlikely, and keep a user's unsent
-/// readings for when they sign back in.
 class SqliteOutboxStore implements OutboxStore {
   SqliteOutboxStore._(this._db);
 
   /// Opens (creating if needed) the outbox for [ownerId].
-  ///
-  /// [factory] and [directory] exist for tests, which run against an
-  /// in-memory database through FFI instead of the Android plugin.
   static Future<SqliteOutboxStore> open({
     required String ownerId,
     DatabaseFactory? factory,
@@ -47,8 +28,7 @@ class SqliteOutboxStore implements OutboxStore {
 
   final Database _db;
 
-  // Schema. `ts` is the reading's timestamp in UTC milliseconds and the
-  // primary key, the same identity the backend uses to detect a repeat.
+  // Schema: `ts` (UTC ms) is the primary key, the same identity the backend uses.
   static Future<void> _create(Database db, int version) => db.execute('''
     CREATE TABLE outbox (
       ts          INTEGER PRIMARY KEY,
@@ -72,8 +52,7 @@ class SqliteOutboxStore implements OutboxStore {
     'class_label': r.classLabel,
     'confidence': r.confidence,
     'queued_at': DateTime.now().toUtc().millisecondsSinceEpoch,
-    // A reading already queued is left exactly as it is, including its
-    // attempt count, rather than being reset by the repeat.
+    // A repeat leaves the queued reading and its attempt count unchanged.
   }, conflictAlgorithm: ConflictAlgorithm.ignore);
 
   @override
@@ -136,8 +115,7 @@ class SqliteOutboxStore implements OutboxStore {
       ),
   ];
 
-  /// A Cognito sub is a UUID, but the file name is built from it, so anything
-  /// outside a safe set is replaced rather than trusted.
+  /// Sanitised, because the file name is built from the user ID.
   static String _safe(String id) =>
       id.replaceAll(RegExp(r'[^A-Za-z0-9_-]'), '_');
 }

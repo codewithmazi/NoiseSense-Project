@@ -5,20 +5,10 @@ import 'package:noise_sense/presentation/theme/app_theme.dart';
 import 'package:noise_sense/presentation/theme/contrast.dart';
 
 /// Measures the theme's colour contrast against WCAG 2.2.
-///
-/// The purpose is to turn an accessibility claim into a measurement. "The
-/// palette is accessible" is an assertion a marker has to take on trust; a
-/// failing test and a printed ratio of 3.9:1 is evidence. The ratios this
-/// prints are the figures reported for experiment M9.
-///
-/// It also guards against the usual way a palette decays: a colour nudged for
-/// appearance, months later, quietly dropping below the threshold. Here that
-/// breaks the build.
 void main() {
   group('Contrast arithmetic', () {
     test('black against white is the maximum ratio of 21:1', () {
-      // The known anchor for the formula. If this is wrong, every other
-      // number in the file is wrong too.
+      // The known anchor for the formula.
       expect(
         Contrast.ratio(const Color(0xFF000000), const Color(0xFFFFFFFF)),
         closeTo(21.0, 0.01),
@@ -52,8 +42,7 @@ void main() {
     test(
       'a translucent colour is rejected rather than given a false ratio',
       () {
-        // Compositing is the caller's job. Returning a number here would be
-        // worse than failing, because it would look authoritative.
+        // Compositing is the caller's job.
         expect(
           () =>
               Contrast.ratio(const Color(0x800F1B2D), const Color(0xFFFFFFFF)),
@@ -76,8 +65,7 @@ void main() {
         }
       });
 
-      // Printed whether or not the test passes, so the report can quote the
-      // measured figures rather than just "it passed".
+      // Printed whether or not the test passes.
       _report('WCAG 2.2 SC 1.4.3 text contrast (requires 4.5:1)', measured);
 
       expect(failures, isEmpty, reason: 'Below 4.5:1: ${failures.join('; ')}');
@@ -101,10 +89,7 @@ void main() {
     });
 
     test('panels are bounded by an outline, not by their fill alone', () {
-      // Records a defect this test suite found and the fix for it. The panel
-      // fill sits around 1.2:1 against the page, which is invisible, and no
-      // pair of dark backgrounds can reach 3:1 while still carrying readable
-      // text. The boundary was therefore moved onto an explicit border.
+      // Records a defect this suite found, and its fix.
       final fill = Contrast.ratio(AppTheme.surfaceContainer, AppTheme.surface);
       final border = Contrast.ratio(AppTheme.outlineSubtle, AppTheme.surface);
 
@@ -124,9 +109,7 @@ void main() {
     });
 
     test('the large headline figure clears the stricter normal-text bar', () {
-      // The dose is set at 44pt, which WCAG would judge as large text at 3:1.
-      // It is held to 4.5:1 anyway: it is the single most important number in
-      // the app, and the stricter threshold costs nothing to meet here.
+      // The 44pt dose figure is held to 4.5:1 anyway.
       expect(
         Contrast.ratio(AppTheme.onSurface, AppTheme.surfaceContainer),
         greaterThanOrEqualTo(Contrast.aaNormalText),

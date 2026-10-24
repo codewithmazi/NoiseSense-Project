@@ -6,8 +6,7 @@ import 'dart:typed_data';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:noise_sense/domain/acoustics/source_classifier.dart';
 
-/// The real bundled files, read from disk, so these tests fail if the shipped
-/// mapping and label list ever disagree.
+/// The real bundled files, read from disk.
 final _labels = File('assets/models/yamnet_labels.txt')
     .readAsLinesSync()
     .where((l) => l.isNotEmpty)
@@ -60,8 +59,7 @@ Future<void> _settle() async {
 void main() {
   group('the shipped mapping', () {
     test('every listed name is a real YAMNet label', () {
-      // Throws on a misspelling, which would otherwise silently weaken a
-      // category by matching nothing.
+      // Throws on a misspelling, which would otherwise silently weaken a category by matching nothing.
       final map = SourceCategoryMap.parse(_mappingJson, _labels);
       expect(map.categoryNames, ['road_traffic', 'speech', 'construction']);
     });
@@ -96,8 +94,7 @@ void main() {
     }
 
     test('a category scores its best member, not the sum of members', () {
-      // Three overlapping traffic labels at 0.4 must not outweigh one clear
-      // speech label at 0.6.
+      // Three overlapping traffic labels at 0.4 must not outweigh one clear speech label at 0.6.
       final c = map.categoryScores(
         scores({
           'Car': 0.4,

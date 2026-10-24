@@ -3,7 +3,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:noise_sense/data/audio/android_measurement_service.dart';
 
 /// Tests the Dart half of the platform channel against a scripted native side.
-/// The Kotlin half can only be verified on a device.
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   const channel = MethodChannel(AndroidMeasurementService.channelName);

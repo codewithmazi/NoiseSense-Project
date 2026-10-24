@@ -18,8 +18,7 @@ void main() {
   });
 
   test('a sample split across two buffers is reassembled, not lost', () {
-    // The failure this prevents: dropping the odd byte misaligns every later
-    // sample, turning a quiet signal into full-scale noise.
+    // Dropping an odd byte would misalign every later sample.
     final samples = [1000, -2000, 3000, -4000];
     final all = _bytes(samples);
     final decoder = Pcm16Decoder();

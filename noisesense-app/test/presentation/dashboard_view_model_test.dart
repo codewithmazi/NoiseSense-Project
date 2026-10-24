@@ -75,18 +75,12 @@ class _FakeNoiseRepository implements NoiseRepository {
 int _nextMinute = 0;
 
 /// A reading at a fixed local hour, so period penalties are deterministic.
-///
-/// Each call gets its own minute unless [minute] is given. Readings are
-/// identified by timestamp, so two readings sharing one would be treated as
-/// the same reading; an earlier version of this helper gave them all 12:00,
-/// which only went unnoticed because nothing merged by timestamp then.
 NoiseReading _reading(double dbA, {int hour = 12, int? minute}) => NoiseReading(
   timestamp: DateTime.utc(2026, 10, 11, hour, minute ?? (_nextMinute++ % 60)),
   dbA: dbA,
 );
 
-/// A scheduler that records retries instead of running them, so tests
-/// decide when a retry happens.
+/// A scheduler that records retries instead of running them, so tests decide when a retry happens.
 class _ManualScheduler {
   final delays = <Duration>[];
   void Function()? pending;
@@ -114,10 +108,7 @@ void main() {
           scheduler: scheduler.call,
         ),
         onSessionExpired: () async => expiryCalls++,
-        // The local hour is pinned, so the day/evening/night penalty applied
-        // does not depend on the machine's time zone. Without this the same
-        // test would produce different figures in CI (UTC) and on a developer
-        // machine in British Summer Time.
+        // The local hour is pinned, so the day/evening/night penalty applied does not depend on the machine's time zone.
         calculator: ExposureCalculator(localHour: (utc) => utc.hour),
         measurementWindow: window,
       );
@@ -134,10 +125,7 @@ void main() {
     test(
       'readings and settings are fetched together, not one after the other',
       () async {
-        // Proves concurrency rather than just that both were called: history is
-        // held open, and settings must already have been requested while it is
-        // still in flight. Serialising the two would roughly double the wait on
-        // a connection where a round trip can include a Lambda cold start.
+        // Proves concurrency rather than just that both were called.
         repository.historyGate = Completer<void>();
         final pending = viewModel.load();
 
@@ -157,8 +145,7 @@ void main() {
     test(
       'an empty list before the first load is not reported as no readings',
       () {
-        // The distinction the UI depends on: "not loaded yet" must not render
-        // as "you have no history".
+        // The distinction the UI depends on: "not loaded yet" must not render as "you have no history".
         expect(viewModel.hasLoadedOnce, isFalse);
         expect(viewModel.readings, isEmpty);
       },
@@ -198,9 +185,7 @@ void main() {
     });
 
     test('is the energy average, not the arithmetic mean', () async {
-      // 60 dB and 70 dB average to 67.4 dB, not 65 dB. Getting this wrong
-      // would understate exposure, which for a health tool is the dangerous
-      // direction to be wrong in.
+      // 60 dB and 70 dB average to 67.4 dB, not 65 dB.
       repository.readings = [_reading(60), _reading(70)];
       await viewModel.load();
       expect(viewModel.dose!.levelDb, closeTo(67.4, 0.05));
@@ -215,8 +200,7 @@ void main() {
     });
 
     test('night readings carry the +10 dB penalty', () async {
-      // Same sound level, different hour: the Lden weighting must change the
-      // result, or the whole cumulative-dose model is cosmetic.
+      // Same sound level, different hour.
       repository.readings = [_reading(60, hour: 12)];
       await viewModel.load();
       final day = viewModel.dose!.levelDb;
@@ -295,8 +279,7 @@ void main() {
       expect(saved, isTrue);
       expect(viewModel.readings, hasLength(1));
       await settle();
-      // No second history call: DynamoDB reads are eventually consistent, so
-      // re-reading could legitimately omit the write that just succeeded.
+      // No second history call: DynamoDB reads are eventually consistent.
       expect(repository.calls.where((c) => c == 'history').length, 1);
     });
 
@@ -411,8 +394,7 @@ void main() {
         repository.historyError = const UnauthorisedException('Not signed in');
         await viewModel.load();
         expect(expiryCalls, 1);
-        // No message: the user is about to see the sign-in screen, which
-        // explains itself.
+        // No message: the user is about to see the sign-in screen, which explains itself.
         expect(viewModel.errorMessage, isNull);
       },
     );
@@ -433,8 +415,7 @@ void main() {
     );
 
     test('an ordinary failure does not end the session', () async {
-      // The negative case. If every error signed the user out, a single
-      // dropped connection would log them out mid-walk.
+      // The negative case.
       repository.historyError = const ServiceUnavailableException('offline');
       await viewModel.load();
       expect(expiryCalls, 0);

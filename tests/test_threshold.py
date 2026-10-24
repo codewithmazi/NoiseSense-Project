@@ -1,7 +1,4 @@
-"""Unit tests for the threshold Lambda. No AWS access: boto3 is stubbed.
-
-Run from the repo root:  python -m unittest discover -s tests -v
-"""
+"""Unit tests for the threshold Lambda."""
 
 import importlib
 import os

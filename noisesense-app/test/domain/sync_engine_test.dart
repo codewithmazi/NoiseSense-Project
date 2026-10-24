@@ -169,8 +169,7 @@ void main() {
     });
 
     test('jitter spreads delays across the whole range', () {
-      // Full jitter: uniform between the floor and the ceiling, so a crowd
-      // of phones reconnecting together does not retry in step.
+      // Full jitter: uniform between the floor and the ceiling.
       final e = build(random: math.Random(42));
       final delays = [for (var i = 0; i < 2000; i++) e.backoffDelay(4)];
       final ms = delays.map((d) => d.inMilliseconds).toList()..sort();
@@ -256,9 +255,7 @@ void main() {
   test(
     'overlapping flushes never upload the same entry concurrently',
     () async {
-      // Measurement, the retry timer and app resume can all ask for a flush at
-      // once. A second concurrent pass would send the same reading twice in
-      // parallel.
+      // Measurement, the retry timer and app resume can all ask for a flush at once.
       for (var m = 0; m < 5; m++) {
         await store.add(_r(m));
       }

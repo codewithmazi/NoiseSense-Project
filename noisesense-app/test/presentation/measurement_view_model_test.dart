@@ -127,8 +127,7 @@ void main() {
   });
 
   test('stopping part-way through a window sends nothing', () async {
-    // A reading must describe the whole window it claims to. A 4-second
-    // fragment reported as a 10-second window would distort the dose.
+    // A reading must describe the whole window it claims to.
     await vm.start();
     await source.play(4);
     await vm.stop();
@@ -138,8 +137,7 @@ void main() {
   });
 
   test('going to the background stops measuring', () async {
-    // Android gives a backgrounded app silence, which would be recorded as
-    // falsely quiet windows.
+    // Background apps get silence, recorded as falsely quiet windows.
     await vm.start();
     await vm.onForegroundChanged(inForeground: false);
     expect(vm.isMeasuring, isFalse);
@@ -265,8 +263,7 @@ void main() {
     });
 
     test('with the service refused, hiding the app stops it', () async {
-      // The negative case. Carrying on without the service would record
-      // the silence Android hands a background app as falsely quiet minutes.
+      // The negative case.
       keepAlive.grant = false;
       await bg.start();
       expect(bg.measuresInBackground, isFalse);

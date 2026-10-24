@@ -4,27 +4,7 @@ import '../../domain/services/exposure_calculator.dart';
 import '../formatters.dart';
 import '../theme/app_theme.dart';
 
-/// The headline figure: cumulative exposure, with the context needed to read
-/// it honestly.
-///
-/// This card is where the 602 design was deliberately replaced. That version
-/// alerted on any single reading above a fixed 70 dB(A), which treats a
-/// one-second door slam and a night of traffic as the same risk. What is shown
-/// here is an Lden-style dose: an energy average with the evening and night
-/// penalties from the EU Environmental Noise Directive (2002/49/EC, Annex I)
-/// applied, so the figure reflects accumulated exposure rather than a peak.
-///
-/// Three things are shown together, never the level alone:
-///
-/// * the dose, as the large figure;
-/// * the measured time it covers, because a dose over twenty minutes is not
-///   comparable with one over a day and the level alone hides that;
-/// * how it compares with the threshold the user chose.
-///
-/// Showing the coverage is the point of intellectual honesty in this screen.
-/// Formal Lden assumes a complete 24-hour record, and a phone almost never
-/// provides one, so presenting the number without its coverage would overstate
-/// what has actually been measured.
+/// Headline cumulative exposure figure, with its context.
 class ExposureSummaryCard extends StatelessWidget {
   const ExposureSummaryCard({
     super.key,
@@ -89,9 +69,7 @@ class ExposureSummaryCard extends StatelessWidget {
           ),
         ),
         const SizedBox(height: AppTheme.spaceSm),
-        // The figure and its unit are one semantic string, so a screen reader
-        // reads "67.4 decibels A-weighted" rather than announcing a bare
-        // number followed by a separate fragment.
+        // The figure and its unit are one semantic string.
         Semantics(
           label:
               'Cumulative exposure ${Formatters.levelValue(current.levelDb)} '
@@ -139,8 +117,7 @@ class ExposureSummaryCard extends StatelessWidget {
           const SizedBox(height: AppTheme.spaceMd),
           Row(
             children: [
-              // Icon as well as colour, so the comparison does not depend on
-              // distinguishing red from blue (WCAG 2.2 SC 1.4.1).
+              // Icon as well as colour (WCAG 2.2 SC 1.4.1).
               Icon(
                 isOver
                     ? Icons.warning_amber_rounded

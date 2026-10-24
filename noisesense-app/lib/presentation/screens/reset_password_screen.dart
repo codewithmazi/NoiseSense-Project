@@ -10,14 +10,6 @@ import '../widgets/message_banner.dart';
 import '../widgets/screen_shell.dart';
 
 /// Password reset in two steps on one screen: ask for a code, then use it.
-///
-/// One screen rather than two, so the back button always means "abandon the
-/// reset and return to sign-in". With two pushed screens, back from step two
-/// would land on step one, a form the user has already completed, which is a
-/// step backwards that looks like a step sideways.
-///
-/// Pops with `true` when the password has been changed, so the sign-in screen
-/// can fill in the address and the user only has to type the new password.
 class ResetPasswordScreen extends StatefulWidget {
   const ResetPasswordScreen({
     super.key,
@@ -27,8 +19,7 @@ class ResetPasswordScreen extends StatefulWidget {
 
   final AuthViewModel auth;
 
-  /// Whatever was already typed on the sign-in screen, so the user does not
-  /// enter their address twice.
+  /// Whatever was already typed on the sign-in screen, so the user does not enter their address twice.
   final String initialEmail;
 
   @override
@@ -157,8 +148,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
             const SizedBox(height: AppTheme.spaceMd),
             TextFormField(
               controller: _password,
-              // The same rules as registration, because Cognito applies the
-              // same policy to a reset as to a new account.
+              // The same rules as registration.
               validator: Validators.newPassword,
               enabled: !auth.isBusy,
               obscureText: !_showPassword,
@@ -196,8 +186,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
       onPressed: auth.isBusy ? null : _resendCode,
       child: const Text('Send a new code'),
     ),
-    // The escape for a mistyped address. Without it the only way to correct
-    // one is to leave the screen and start again.
+    // The escape for a mistyped address.
     TextButton(
       onPressed: auth.isBusy
           ? null

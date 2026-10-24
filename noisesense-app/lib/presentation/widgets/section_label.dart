@@ -2,11 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../theme/app_theme.dart';
 
-/// Small muted heading above a group of content, as the wireframes use for
-/// "Today's cumulative dose", "Sync" and "Account".
-///
-/// Marked as a header so a screen reader can jump between groups rather than
-/// reading every line in order.
+/// Small muted heading above a group of content.
 class SectionLabel extends StatelessWidget {
   const SectionLabel(this.text, {super.key});
 

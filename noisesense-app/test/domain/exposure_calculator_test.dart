@@ -6,8 +6,7 @@ import 'package:noise_sense/domain/services/exposure_calculator.dart';
 
 double log10(num x) => math.log(x) / math.ln10;
 
-/// Treats timestamps as already in local time, so results are identical
-/// whether the tests run in UTC (CI) or British Summer Time.
+/// Treats timestamps as already in local time.
 int _hourAsIs(DateTime t) => t.hour;
 
 NoiseReading _at(int hour, double dbA, {double? laeq}) => NoiseReading(

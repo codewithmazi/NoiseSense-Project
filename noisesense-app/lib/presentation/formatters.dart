@@ -1,10 +1,4 @@
 /// Number, time and duration formatting for display.
-///
-/// Written by hand rather than with `intl`, because the app needs about six
-/// formats and adding a localisation dependency to get them would not pay for
-/// itself. The limitation is accepted openly: these produce British English
-/// conventions only, so genuine internationalisation would mean replacing this
-/// file with `intl` rather than extending it.
 class Formatters {
   const Formatters._();
 
@@ -24,12 +18,6 @@ class Formatters {
   ];
 
   /// A sound level with its unit, to one decimal place: `67.4 dB(A)`.
-  ///
-  /// One decimal, no more. A phone microphone is uncalibrated, and Kardous and
-  /// Shaw (2014) found errors of several decibels across consumer devices, so
-  /// quoting two or three decimals would imply a precision the instrument does
-  /// not have. Displaying a number to more digits than it is accurate to is a
-  /// quiet form of overclaiming.
   static String level(double dbA) => '${dbA.toStringAsFixed(1)} dB(A)';
 
   /// A level with no unit, for use beside a label that already carries one.
@@ -47,12 +35,7 @@ class Formatters {
     return minutes == 0 ? '$hours h' : '$hours h $minutes min';
   }
 
-  /// A timestamp in the device's time zone: `14:32` today, `11 Oct, 14:32`
-  /// otherwise.
-  ///
-  /// Converted to local time because readings are stored in UTC, and a user in
-  /// British Summer Time reading "13:32" for something they measured at 14:32
-  /// would reasonably conclude the app is broken.
+  /// A timestamp in the device's time zone: `14:32` today, `11 Oct, 14:32` otherwise.
   static String timestamp(DateTime utc, {DateTime? now}) {
     final local = utc.toLocal();
     final today = (now ?? DateTime.now()).toLocal();
@@ -65,9 +48,7 @@ class Formatters {
     return '${local.day} ${_months[local.month - 1]}, $time';
   }
 
-  /// Turns a classifier label into something readable: `road_traffic` becomes
-  /// `Road traffic`. Falls back to the raw value, so an unrecognised label
-  /// from a newer model version is still shown rather than hidden.
+  /// Turns a classifier label into something readable: `road_traffic` becomes `Road traffic`.
   static String classLabel(String raw) {
     final words = raw.replaceAll('_', ' ').trim();
     if (words.isEmpty) return raw;

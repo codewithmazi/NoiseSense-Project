@@ -36,8 +36,7 @@ void main() {
     });
 
     test('does not reject a plus-addressed mailbox', () {
-      // A real failure in many sign-up forms. Gmail and others use the plus
-      // suffix for filtering, and rejecting it blocks valid addresses.
+      // A real failure in many sign-up forms.
       expect(Validators.email('ron+tag@gmail.com'), isNull);
     });
   });
@@ -48,15 +47,13 @@ void main() {
     });
 
     test('symbols are allowed but not required', () {
-      // Mirrors `RequireSymbols: false` in the SAM template. Demanding one
-      // here would reject passwords Cognito would have accepted.
+      // Mirrors `RequireSymbols: false` in the SAM template.
       expect(Validators.newPassword('Passw0rd'), isNull);
       expect(Validators.newPassword('Passw0rd!'), isNull);
     });
 
     test('lists every unmet rule at once', () {
-      // Revealing requirements one failure at a time makes a form feel
-      // adversarial, so all of them are reported together.
+      // All rules reported at once, not one failure at a time.
       final message = Validators.newPassword('abc')!;
       expect(message, contains('8 characters'));
       expect(message, contains('capital letter'));
@@ -84,10 +81,7 @@ void main() {
 
   group('existing password', () {
     test('only emptiness is checked', () {
-      // Deliberate. An account created under an older policy may hold a
-      // password that no longer satisfies the current rules, and refusing to
-      // attempt sign-in would lock that user out of their own data over a
-      // client-side check.
+      // Sign-in skips the policy check, so old-policy passwords still work.
       expect(Validators.existingPassword('short'), isNull);
       expect(Validators.existingPassword('nocapitals1'), isNull);
       expect(Validators.existingPassword(''), isNotNull);

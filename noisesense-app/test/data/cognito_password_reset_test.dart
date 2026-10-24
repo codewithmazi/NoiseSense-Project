@@ -43,9 +43,7 @@ void main() {
     test(
       'an unregistered address completes exactly like a registered one',
       () async {
-        // The enumeration defence, at the layer where it is enforced for a
-        // client still on LEGACY existence errors. If this threw, the reset
-        // screen would behave differently for real and invented addresses.
+        // Enumeration defence for a client on LEGACY existence errors.
         final api = _api(
           (_) async => _awsError(
             'UserNotFoundException',
@@ -62,8 +60,7 @@ void main() {
     test(
       'only UserNotFound is swallowed; other failures still surface',
       () async {
-        // The negative case for the test above. A blanket "always succeed"
-        // would pass it too, and would hide throttling from the user.
+        // The negative case for the test above.
         final api = _api(
           (_) async =>
               _awsError('LimitExceededException', 'Attempt limit exceeded.'),
@@ -134,31 +131,32 @@ void main() {
       });
     });
 
-    test('an unregistered address reads as a wrong code, not a wrong password', () async {
-      // "Incorrect email address or password" would make no sense on a screen
-      // that asks for neither, and would hint that the address is the problem.
-      final api = _api(
-        (_) async => _awsError('UserNotFoundException', 'not found'),
-      );
-      await expectLater(
-        api.confirmForgotPassword(
-          email: 'nobody@example.test',
-          code: '123456',
-          newPassword: 'N3wPassword',
-        ),
-        throwsA(
-          isA<InvalidRequestException>().having(
-            (e) => e.message,
-            'message',
-            contains('code'),
+    test(
+      'an unregistered address reads as a wrong code, not a wrong password',
+      () async {
+        // Generic sign-in wording would be wrong on this screen.
+        final api = _api(
+          (_) async => _awsError('UserNotFoundException', 'not found'),
+        );
+        await expectLater(
+          api.confirmForgotPassword(
+            email: 'nobody@example.test',
+            code: '123456',
+            newPassword: 'N3wPassword',
           ),
-        ),
-      );
-    });
+          throwsA(
+            isA<InvalidRequestException>().having(
+              (e) => e.message,
+              'message',
+              contains('code'),
+            ),
+          ),
+        );
+      },
+    );
 
     test('UserNotFound is not swallowed here, unlike ForgotPassword', () async {
-      // Completing successfully would tell the user their password had been
-      // changed when nothing had happened.
+      // Must not report success when nothing changed.
       final api = _api(
         (_) async => _awsError('UserNotFoundException', 'not found'),
       );
@@ -219,8 +217,7 @@ void main() {
   test(
     'sign-in mapping of UserNotFound is unchanged by the reset work',
     () async {
-      // Regression guard: the operation-aware mapping must not alter the
-      // existing sign-up flow's messages.
+      // Regression guard: sign-up messages unchanged.
       final api = _api(
         (_) async => _awsError('UserNotFoundException', 'not found'),
       );

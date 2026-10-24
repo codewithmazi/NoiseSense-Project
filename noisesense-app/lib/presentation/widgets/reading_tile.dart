@@ -5,11 +5,6 @@ import '../formatters.dart';
 import '../theme/app_theme.dart';
 
 /// One row in the history list.
-///
-/// Each row is announced to a screen reader as a single sentence rather than
-/// as four adjacent fragments. Without that, navigating the list by swipe
-/// produces "14:32", "67.4", "dB(A)", "Road traffic", "82%" as five separate
-/// stops, which is technically labelled and practically unusable.
 class ReadingTile extends StatelessWidget {
   const ReadingTile({
     super.key,
@@ -20,9 +15,7 @@ class ReadingTile extends StatelessWidget {
 
   final NoiseReading reading;
 
-  /// Held on this phone and not yet uploaded. Shown with an icon and in the
-  /// spoken label, so the state is not conveyed by colour alone (WCAG 2.2
-  /// SC 1.4.1).
+  /// Held on this phone and not yet uploaded.
   final bool isPending;
 
   /// The user's alert level, used only to mark rows that exceeded it.
@@ -30,9 +23,7 @@ class ReadingTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // LAeq is preferred when present because it is already an energy average
-    // over the window, so it describes the whole window rather than a moment
-    // within it. dB(A) is the fallback.
+    // LAeq preferred: it is already an energy average.
     final level = reading.laeq ?? reading.dbA;
     final threshold = thresholdDbA;
     final isOver = threshold != null && level >= threshold;
@@ -55,8 +46,7 @@ class ReadingTile extends StatelessWidget {
         child: Row(
           children: [
             SizedBox(
-              // Wide enough for "16 Oct, 20:12" on one line at normal text
-              // size; at 86 it wrapped onto two on the S9+.
+              // Wide enough for "16 Oct, 20:12" on one line at normal text size.
               width: 112,
               child: Text(
                 Formatters.timestamp(reading.timestamp),
@@ -82,12 +72,7 @@ class ReadingTile extends StatelessWidget {
                     Padding(
                       padding: const EdgeInsets.only(top: 2),
                       child: Text(
-                        // The confidence is shown with the label, never the
-                        // label alone. An on-device classifier running on
-                        // quantised weights is often wrong, and presenting
-                        // "Road traffic" as a bare fact would overstate what
-                        // the model actually knows. Experiment M7 reports the
-                        // confusion matrix behind this caveat.
+                        // Confidence always shown with the label.
                         confidence == null
                             ? Formatters.classLabel(label)
                             : '${Formatters.classLabel(label)} '

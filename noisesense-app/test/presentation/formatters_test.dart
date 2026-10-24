@@ -4,17 +4,13 @@ import 'package:noise_sense/presentation/formatters.dart';
 void main() {
   group('levels', () {
     test('are shown to one decimal place and no further', () {
-      // Not fussiness. A phone microphone is uncalibrated, and Kardous and
-      // Shaw (2014) measured errors of several decibels across consumer
-      // devices, so printing 67.4382 dB(A) would claim a precision the
-      // instrument does not have.
+      // One decimal: an uncalibrated microphone cannot justify more.
       expect(Formatters.level(67.4382), '67.4 dB(A)');
       expect(Formatters.level(60), '60.0 dB(A)');
     });
 
     test('a threshold is shown in whole decibels, matching the slider', () {
-      // The slider moves in 1 dB steps, so showing a decimal would imply a
-      // value the control cannot select.
+      // Whole decibels: the slider moves in 1 dB steps.
       expect(Formatters.threshold(70.0), '70 dB(A)');
       expect(Formatters.threshold(69.6), '70 dB(A)');
     });
@@ -39,9 +35,7 @@ void main() {
 
   group('timestamps', () {
     test('are converted to local time', () {
-      // Readings are stored in UTC. A user in British Summer Time shown
-      // "13:32" for a reading they took at 14:32 would reasonably conclude
-      // the app is broken.
+      // Readings are stored in UTC.
       final utc = DateTime.utc(2026, 10, 11, 13, 32);
       final expected = utc.toLocal();
       final formatted = Formatters.timestamp(utc, now: utc);
@@ -80,8 +74,7 @@ void main() {
     });
 
     test('an unrecognised label is still shown rather than hidden', () {
-      // A newer model version emitting a label this build has never seen
-      // should degrade to showing it, not to showing nothing.
+      // Unknown labels from a newer model are shown, not hidden.
       expect(
         Formatters.classLabel('aircraft_overflight'),
         'Aircraft overflight',

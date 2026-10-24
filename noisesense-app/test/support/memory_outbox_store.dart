@@ -2,9 +2,6 @@ import 'package:noise_sense/domain/models/noise_reading.dart';
 import 'package:noise_sense/domain/repositories/outbox_store.dart';
 
 /// In-memory [OutboxStore] for tests of code that uses the outbox.
-///
-/// The SQLite implementation has its own tests against a real database; this
-/// keeps the sync and dashboard tests about sync and dashboard behaviour.
 class MemoryOutboxStore implements OutboxStore {
   final Map<DateTime, OutboxEntry> _entries = {};
 

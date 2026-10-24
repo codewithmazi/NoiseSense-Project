@@ -10,11 +10,6 @@ import '../widgets/section_label.dart';
 import '../widgets/sync_status_view.dart';
 
 /// Tab 2, "History": a chart over the itemised readings, after the wireframe.
-///
-/// The wireframe's Day/Week toggle is not built. The service returns at most
-/// the latest 100 readings, which is under two hours at one a minute, so a
-/// "Week" view would be drawn from data the app does not have. The chart is
-/// labelled with the span it actually covers instead.
 class HistoryScreen extends StatelessWidget {
   const HistoryScreen({super.key, required this.dashboard});
 
@@ -69,11 +64,7 @@ class HistoryScreen extends StatelessWidget {
                     horizontal: AppTheme.spaceMd,
                     vertical: AppTheme.spaceSm,
                   ),
-                  // A Column rather than a nested ListView: the page already
-                  // scrolls, and a scrollable inside a scrollable traps the
-                  // gesture and confuses the screen reader's reading order.
-                  // The list is capped at 100 by the service, so building it
-                  // all is cheap.
+                  // A Column rather than a nested ListView.
                   child: Column(
                     children: [
                       for (var i = 0; i < readings.length; i++) ...[

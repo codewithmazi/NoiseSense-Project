@@ -4,10 +4,6 @@ import '../../domain/services/sync_engine.dart';
 import '../theme/app_theme.dart';
 
 /// Compact upload state for an app bar: the wireframe's "Synced" chip.
-///
-/// Teal when everything is uploaded; amber, with a count, when readings are
-/// waiting on the phone. The words carry the meaning and the colour repeats
-/// it (WCAG 2.2 SC 1.4.1).
 class SyncChip extends StatelessWidget {
   const SyncChip({super.key, required this.status});
 
@@ -46,12 +42,6 @@ class SyncChip extends StatelessWidget {
 }
 
 /// One line of upload state, under a heading.
-///
-/// Silent when everything is uploaded, because "all synced" on every visit is
-/// noise. When something is waiting it says how many and what happens next,
-/// so a user who measured underground is told their readings are safe rather
-/// than left to wonder why history looks short (Nielsen, 1994: visibility of
-/// system status).
 class SyncLine extends StatelessWidget {
   const SyncLine({super.key, required this.status});
 

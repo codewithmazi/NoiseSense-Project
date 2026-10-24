@@ -12,12 +12,6 @@ import '../widgets/screen_shell.dart';
 import '../widgets/threshold_card.dart';
 
 /// The signed-in home screen: cumulative exposure, alert threshold, history.
-///
-/// Information is ordered by what the user came for. The dose answers "how
-/// much noise have I been exposed to", which is the question the product
-/// exists to answer, so it is first and largest. The threshold is the one
-/// control that changes how the dose is interpreted, so it comes next.
-/// History is the supporting detail and comes last.
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({
     super.key,
@@ -38,8 +32,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   @override
   void initState() {
     super.initState();
-    // Loaded here rather than in `build`, which runs again on every rebuild
-    // and would re-request on each one.
+    // Loaded here rather than in `build`.
     widget.viewModel.load();
   }
 
@@ -65,10 +58,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         ],
       ),
     );
-    // Confirmed because signing out is easy to trigger by accident from an
-    // app bar icon and, until the Week 4 local store exists, it is the one
-    // action that cannot be undone from inside the app (Nielsen, 1994: error
-    // prevention).
+    // Confirmed, because sign-out is easy to trigger by accident (error prevention).
     if (confirmed == true) await widget.onSignOut();
   }
 
@@ -98,10 +88,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               MessageBanner(message: vm.errorMessage),
               const SizedBox(height: AppTheme.spaceMd),
             ],
-            // Shown only before the first load has finished. Afterwards a
-            // refresh leaves the existing figures in place rather than
-            // replacing the screen with a spinner, so the user is not made to
-            // watch content they already had disappear.
+            // Shown only before the first load has finished.
             if (vm.isLoading && !vm.hasLoadedOnce)
               const Padding(
                 padding: EdgeInsets.symmetric(vertical: AppTheme.spaceXl),
@@ -165,11 +152,7 @@ class _HistorySection extends StatelessWidget {
                 horizontal: AppTheme.spaceMd,
                 vertical: AppTheme.spaceSm,
               ),
-              // A Column rather than a nested ListView. The whole page already
-              // scrolls, and a scrollable inside a scrollable traps the
-              // gesture and confuses the screen reader's reading order. The
-              // back end caps `GET /history` at 100 items, so the cost of
-              // building them all is bounded and small.
+              // A Column rather than a nested ListView.
               child: Column(
                 children: [
                   for (var i = 0; i < readings.length; i++) ...[
@@ -190,12 +173,6 @@ class _HistorySection extends StatelessWidget {
 }
 
 /// One line of upload state under the history heading.
-///
-/// Silent when everything is uploaded, because "all synced" on every visit is
-/// noise. When something is waiting it says how many and what happens next,
-/// so a user who measured underground is told their readings are safe rather
-/// than left to wonder why history looks short (Nielsen, 1994: visibility of
-/// system status).
 class _SyncLine extends StatelessWidget {
   const _SyncLine({required this.status});
 

@@ -15,29 +15,12 @@ enum MeasurementStatus {
   starting,
   measuring,
 
-  /// The user refused microphone access. Distinct from [failed] because the
-  /// remedy is different: a setting the user controls, not a retry.
+  /// The user refused microphone access.
   permissionDenied,
   failed,
 }
 
-/// Runs live measurement and hands each finished window on as a reading.
-///
-/// ## Background measurement
-///
-/// Since Android 9, an app with nothing visible and no foreground service
-/// receives silence from the microphone rather than an error. Recording on
-/// regardless would save a stream of falsely quiet windows and understate
-/// exposure, which for a health tool is the dangerous direction to be wrong
-/// in.
-///
-/// So on start, the view model asks [BackgroundKeepAlive] to hold the app in
-/// the foreground state (an Android foreground service, with a visible
-/// notification). If that is granted, measurement carries on with the screen
-/// off. If it is refused, measurement falls back to foreground-only: it stops
-/// when the app is hidden, and the unfinished window is discarded rather than
-/// reported as a short one. [measuresInBackground] tells the UI which mode is
-/// in force, so the user is never left assuming coverage they do not have.
+/// Runs live measurement and turns each finished window into a reading.
 class MeasurementViewModel extends ChangeNotifier {
   MeasurementViewModel({
     required this._source,
@@ -64,20 +47,10 @@ class MeasurementViewModel extends ChangeNotifier {
 
   bool _backgroundEnabled = true;
 
-  /// The user's choice, from Settings, to allow measuring with the screen
-  /// off. On by default because coverage is the point of the product, but the
-  /// user can refuse: the notification makes an always-on microphone
-  /// visible, and this makes it optional.
-  ///
-  /// Held in memory only, so it returns to on when the app restarts. Persisting
-  /// it is recorded as a limitation rather than built, to avoid a settings
-  /// store for one boolean in the final week.
+  /// The user's choice, from Settings, to allow measuring with the screen off.
   bool get backgroundEnabled => _backgroundEnabled;
 
-  /// Applies at once if measuring: switching off releases the service, so
-  /// measurement falls back to foreground-only; switching on requests it.
-  /// The call comes from the Settings screen, so the app is visible, which
-  /// Android 11+ requires for starting a microphone service.
+  /// Applies immediately if measuring.
   Future<void> setBackgroundEnabled(bool enabled) async {
     if (enabled == _backgroundEnabled) return;
     _backgroundEnabled = enabled;
@@ -92,17 +65,13 @@ class MeasurementViewModel extends ChangeNotifier {
     if (!_disposed) notifyListeners();
   }
 
-  /// Loads the on-device source classifier (FR-09), or null where there is
-  /// none. Called once, on the first start, so the 4 MB model does not slow
-  /// app launch for a user who never measures.
+  /// Loads the on-device source classifier (FR-09), or null where there is none.
   final Future<WindowClassifier> Function()? _loadClassifier;
   WindowClassifier? _classifier;
   bool _classifierTried = false;
   bool _classificationEnabled = true;
 
-  /// Whether readings will carry a noise source. False if the model could not
-  /// be loaded: measurement then continues without one, because a missing
-  /// label is a lesser loss than a missing reading.
+  /// Whether readings will carry a noise source.
   bool get classifierAvailable => _classifier != null;
 
   /// The Settings "Classify noise source" switch.
@@ -112,8 +81,7 @@ class MeasurementViewModel extends ChangeNotifier {
     if (enabled == _classificationEnabled) return;
     _classificationEnabled = enabled;
     _classifier?.enabled = enabled;
-    // Partial totals from before the switch would describe only part of the
-    // window, so they are discarded.
+    // Partial totals from before the switch are discarded.
     _classifier?.reset();
     notifyListeners();
   }
@@ -151,9 +119,7 @@ class MeasurementViewModel extends ChangeNotifier {
   MeasuredWindow? get lastWindow => _lastWindow;
   int get windowsSent => _windowsSent;
 
-  /// Windows measured but not stored. Until the Week 4 outbox exists, a reading
-  /// that fails to upload is lost, and this count makes that visible instead of
-  /// silent.
+  /// Windows measured but not stored.
   int get windowsFailed => _windowsFailed;
 
   String? get errorMessage => _errorMessage;
@@ -173,9 +139,7 @@ class MeasurementViewModel extends ChangeNotifier {
     }
 
     try {
-      // Requested before capture opens and while the app is visible, which
-      // Android 11+ requires of a microphone foreground service. Android 14+
-      // also requires microphone permission first, granted just above.
+      // Requested before capture opens and while the app is visible.
       _keepAliveHeld = _backgroundEnabled && await _keepAlive.begin();
       if (_disposed) {
         await _release();
@@ -210,16 +174,14 @@ class MeasurementViewModel extends ChangeNotifier {
     }
   }
 
-  /// Stops measuring and releases the microphone. The window in progress is
-  /// discarded, because a reading must describe the full window it claims.
+  /// Stops measuring and releases the microphone.
   Future<void> stop() async {
     await _release();
     if (_disposed) return;
     _setStatus(MeasurementStatus.idle);
   }
 
-  /// Called when the app leaves or returns to the foreground. Measurement
-  /// stops on leaving only if nothing is keeping the microphone live.
+  /// Called when the app leaves or returns to the foreground.
   Future<void> onForegroundChanged({required bool inForeground}) async {
     if (!inForeground && isMeasuring && !_keepAliveHeld) await stop();
   }
@@ -233,13 +195,11 @@ class MeasurementViewModel extends ChangeNotifier {
     _elapsed = meter.elapsedInWindow;
     for (final w in out.windows) {
       _lastWindow = w;
-      // Taken synchronously as the window closes, so the next window's
-      // frames start a fresh tally.
+      // Taken synchronously as the window closes, so the next window's frames start a fresh tally.
       final source = _classifier?.takeWindow();
       if (source != null) {
         _lastSource = source;
-        // Debug builds only; stripped from release. Label names and numbers,
-        // never audio, so nothing private reaches the log.
+        // Debug builds only; stripped from release.
         if (kDebugMode) {
           debugPrint(
             'NS-CLASSIFY ${w.start.toIso8601String()} '
@@ -250,6 +210,14 @@ class MeasurementViewModel extends ChangeNotifier {
             '${source.topLabels.map((t) => '${t.$1}=${t.$2.toStringAsFixed(2)}').join(', ')}',
           );
         }
+      } else if (kDebugMode) {
+        // Diagnostic for a window saved without a source.
+        debugPrint(
+          'NS-CLASSIFY ${w.start.toIso8601String()} -> none | '
+          'loaded=${_classifier != null} tried=$_classifierTried '
+          'enabled=$_classificationEnabled '
+          'droppedTotal=${_classifier?.framesDropped ?? '-'}',
+        );
       }
       _submit(w, source);
     }
@@ -265,24 +233,22 @@ class MeasurementViewModel extends ChangeNotifier {
     try {
       _classifier = await load()
         ..enabled = _classificationEnabled;
-    } on Object {
+    } on Object catch (e, stack) {
       // Model missing or the runtime unavailable: measure without labels.
+      if (kDebugMode) debugPrint('NS-CLASSIFY load failed: $e\n$stack');
       _classifier = null;
     }
   }
 
   Future<void> _submit(MeasuredWindow w, SourceClassification? source) async {
-    // laeq carries the energy average used for dose; dbA carries the window's
-    // loudest fast block, so a threshold compared against it still responds
-    // to peaks.
+    // laeq carries the energy average used for dose.
     final confidence = source?.confidence;
     final reading = NoiseReading(
       timestamp: w.start,
       dbA: _round1(w.maxFastDb),
       laeq: _round1(w.laeqDb),
       classLabel: source?.label,
-      // Two decimals: a model score is not precise beyond that, and the UI
-      // shows it as a whole percentage.
+      // Two decimals; the UI shows a whole percentage.
       confidence: confidence == null
           ? null
           : (confidence * 100).roundToDouble() / 100,
@@ -309,8 +275,7 @@ class MeasurementViewModel extends ChangeNotifier {
     _subscription = null;
     _meter = null;
     await _source.stop();
-    // Released after the microphone, so the notification never disappears
-    // while capture is still open.
+    // Released after the microphone, so the notification never disappears while capture is still open.
     if (_keepAliveHeld) {
       _keepAliveHeld = false;
       await _keepAlive.end();
@@ -322,17 +287,14 @@ class MeasurementViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// One decimal place: the display precision, and more than an uncalibrated
-  /// phone microphone can justify.
+  /// One decimal: the display precision.
   static double _round1(double v) => (v * 10).roundToDouble() / 10;
 
   @override
   void dispose() {
     _disposed = true;
     unawaited(_stopRequests.cancel());
-    // Fire and forget: dispose cannot be async, and the microphone must be
-    // released when the user signs out, not left running behind the sign-in
-    // screen.
+    // Fire and forget: the microphone must be released on sign-out.
     unawaited(_release());
     unawaited(_classifier?.close());
     super.dispose();

@@ -10,10 +10,6 @@ import '../widgets/sync_status_view.dart';
 import '../widgets/threshold_card.dart';
 
 /// Tab 4, "Settings", after the wireframe.
-///
-/// The wireframe's "Threshold alerts" toggle is not shown, because push
-/// alerts are not built. A switch that does nothing is worse than no switch:
-/// it tells the user they are in control of something they are not.
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({
     super.key,
@@ -39,9 +35,7 @@ class SettingsScreen extends StatelessWidget {
           pending == 0
               ? 'Your readings stay in your account. You will need to sign in '
                     'again to see them.'
-              // Said explicitly, because the outbox is per user: unsent
-              // readings wait on this phone for this account, and are not
-              // lost or handed to whoever signs in next.
+              // Said explicitly, because the outbox is per user.
               : '$pending ${pending == 1 ? 'reading has' : 'readings have'} '
                     'not uploaded yet. They stay on this phone and upload '
                     'when you sign back in.',
@@ -78,8 +72,7 @@ class SettingsScreen extends StatelessWidget {
               onChanged: dashboard.updateThreshold,
             ),
             const SizedBox(height: AppTheme.spaceXs),
-            // Shown as guidance next to the control, not imposed as the
-            // default: a fixed limit was the 602 design this replaced.
+            // Shown as guidance next to the control, not imposed as the default.
             const Text(
               'For comparison, WHO suggests 53 dB Lden for road traffic noise.',
               style: TextStyle(color: AppTheme.onSurfaceMuted, fontSize: 13),
@@ -133,10 +126,7 @@ class SettingsScreen extends StatelessWidget {
                   children: [
                     Text(
                       [
-                        // "Not synced" with nothing waiting read, on the
-                        // device, as if something had failed while the app
-                        // bar chip said "Synced". Nothing waiting is the state
-                        // that matters, so it is stated first.
+                        // Avoids showing 'Not synced' when nothing is waiting.
                         if (status.pendingCount == 0)
                           'Everything is uploaded'
                         else

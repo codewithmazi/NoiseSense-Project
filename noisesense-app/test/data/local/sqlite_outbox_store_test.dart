@@ -6,8 +6,7 @@ import 'package:noise_sense/domain/models/noise_reading.dart';
 import 'package:noise_sense/domain/repositories/outbox_store.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
-/// Runs the store against a real SQLite database, through FFI, so the SQL,
-/// the schema and the persistence behaviour are what is tested, not a fake.
+/// Runs the store against a real SQLite database, through FFI.
 void main() {
   sqfliteFfiInit();
   final factory = databaseFactoryFfi;
@@ -48,8 +47,7 @@ void main() {
   });
 
   test('readings persist after the database is closed and reopened', () async {
-    // The guarantee the outbox exists for: the process can die and nothing
-    // queued is lost.
+    // Nothing queued is lost if the process dies.
     final first = await open();
     await first.add(reading(1));
     await first.add(reading(2));
@@ -110,8 +108,7 @@ void main() {
   });
 
   test('each user has a separate outbox', () async {
-    // Readings queued by one account must never be uploaded under another
-    // account that signs in on the same phone.
+    // One account's readings must never upload under another.
     final a = await open('user-a');
     await a.add(reading(1));
     await a.close();

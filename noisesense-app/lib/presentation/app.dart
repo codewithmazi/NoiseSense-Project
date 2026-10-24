@@ -9,17 +9,6 @@ import 'view_models/dashboard_view_model.dart';
 import 'view_models/measurement_view_model.dart';
 
 /// The application root, and the gate that decides which screen is on display.
-///
-/// Routing is driven by [AuthStatus] rather than by screens pushing one
-/// another. The practical consequence is that there is no way to reach the
-/// dashboard without a session, because the dashboard is only built in the
-/// [AuthStatus.signedIn] branch. Enforcing that structurally is stronger than
-/// enforcing it with a check on each protected screen, which only holds for as
-/// long as nobody forgets one.
-///
-/// It also handles expiry correctly without extra work: when the service
-/// refuses a stored token, the dashboard view model reports it, the status
-/// changes, and the user is returned to sign-in from wherever they were.
 class NoiseSenseApp extends StatefulWidget {
   const NoiseSenseApp({
     super.key,
@@ -30,18 +19,11 @@ class NoiseSenseApp extends StatefulWidget {
 
   final AuthViewModel auth;
 
-  /// Builds the measurement view model, given the dashboard that finished
-  /// readings are handed to. Created and disposed with the dashboard, so the
-  /// microphone is released on sign-out.
+  /// Builds the measurement view model, given the dashboard that finished readings are handed to.
   final MeasurementViewModel Function(DashboardViewModel dashboard)
   createMeasurement;
 
   /// Builds the dashboard's view model.
-  ///
-  /// A factory rather than an instance, because the view model holds one
-  /// user's readings. Building it at startup and reusing it would risk showing
-  /// the previous user's data to the next one after a sign-out; building it on
-  /// sign-in makes that impossible.
   final DashboardViewModel Function() createDashboard;
 
   @override
@@ -56,18 +38,14 @@ class _NoiseSenseAppState extends State<NoiseSenseApp> {
   @override
   void initState() {
     super.initState();
-    // `onHide` fires when no part of the app is visible. Measuring stops
-    // there, because Android hands a backgrounded app silence instead of
-    // audio (see MeasurementViewModel).
+    // `onHide` fires when no part of the app is visible.
     _lifecycle = AppLifecycleListener(
       onHide: () => _measurement?.onForegroundChanged(inForeground: false),
-      // Returning to the app is a natural moment to retry uploads: the user
-      // may have walked back into signal, and is about to look at the result.
+      // Returning to the app is a natural moment to retry uploads.
       onResume: () => _dashboard?.syncNow(),
     );
     widget.auth.addListener(_onAuthChanged);
-    // Checks for a stored session. Until it answers, the status is
-    // `unknown` and the splash is shown.
+    // Checks for a stored session.
     widget.auth.restoreSession();
   }
 
@@ -87,10 +65,7 @@ class _NoiseSenseAppState extends State<NoiseSenseApp> {
       _dashboard = dashboard;
       _measurement = widget.createMeasurement(dashboard);
     } else if (!signedIn && _dashboard != null) {
-      // Disposed on sign-out, which releases its listeners and drops the
-      // readings it held. Keeping it alive would leave one user's data in
-      // memory behind the next user's sign-in screen. Measurement goes
-      // first, so the microphone is never left running for nobody.
+      // Disposed on sign-out, dropping this user's readings and listeners.
       _measurement?.dispose();
       _measurement = null;
       _dashboard!.dispose();
@@ -106,8 +81,7 @@ class _NoiseSenseAppState extends State<NoiseSenseApp> {
       home: ListenableBuilder(
         listenable: widget.auth,
         builder: (context, _) {
-          // Exhaustive over the enum, so adding a state to AuthStatus will
-          // not compile until this decides what to show for it.
+          // Exhaustive switch: a new AuthStatus will not compile until handled.
           return switch (widget.auth.status) {
             AuthStatus.unknown => const _SplashScreen(),
             AuthStatus.signedOut => SignInScreen(auth: widget.auth),
@@ -124,9 +98,7 @@ class _NoiseSenseAppState extends State<NoiseSenseApp> {
   Widget _dashboardOrSplash() {
     final dashboard = _dashboard;
     final measurement = _measurement;
-    // The listener creates the view models before this runs, so the fallback
-    // is unreachable in practice. It is here so a future reordering degrades
-    // to a splash rather than to a null dereference.
+    // Fallback only; the view models exist before this runs.
     if (dashboard == null || measurement == null) return const _SplashScreen();
     return HomeShell(
       dashboard: dashboard,
@@ -138,9 +110,6 @@ class _NoiseSenseAppState extends State<NoiseSenseApp> {
 }
 
 /// Shown while the stored session is being checked.
-///
-/// Branded rather than a bare spinner, because this is the first thing the
-/// user sees and the check can include a token refresh over a slow connection.
 class _SplashScreen extends StatelessWidget {
   const _SplashScreen();
 

@@ -104,8 +104,7 @@ void main() {
   });
 
   group('error mapping', () {
-    // This is the mapping the Week 1 spike motivated: the Dart package
-    // collapsed all of these into a single "Unknown error".
+    // The error mapping motivated by the Week 1 spike.
     test(
       'an existing account is reported as such, not as a generic failure',
       () async {
@@ -203,8 +202,7 @@ void main() {
     test(
       'an unknown email is indistinguishable from a wrong password',
       () async {
-        // Account enumeration defence: the message must not reveal that the
-        // address is unregistered.
+        // Must not reveal that the address is unregistered.
         final api = _api(
           (_) async =>
               _awsError('UserNotFoundException', 'User does not exist'),

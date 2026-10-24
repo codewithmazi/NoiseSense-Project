@@ -1,13 +1,6 @@
 import 'dart:typed_data';
 
 /// Reassembles little-endian 16-bit samples from a byte stream.
-///
-/// The platform delivers audio as byte buffers of arbitrary length, and
-/// nothing guarantees a buffer ends on a sample boundary. If one ends halfway
-/// through a sample, decoding each buffer on its own would drop that byte and
-/// misread every later sample as the high half of one value and the low half
-/// of the next: loud, broadband noise from a quiet room. This keeps the odd
-/// byte and joins it to the start of the next buffer.
 class Pcm16Decoder {
   int? _carry;
 

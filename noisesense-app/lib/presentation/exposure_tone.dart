@@ -3,13 +3,7 @@ import 'dart:ui';
 import '../domain/services/exposure_calculator.dart';
 import 'theme/app_theme.dart';
 
-/// The wireframes' three-colour scheme, given a precise rule.
-///
-/// The wireframes say "teal = normal, amber = approaching limit, coral =
-/// exceedance" but not where "approaching" starts. Here it starts at half the
-/// allowed energy, which is 3 dB below the limit (see
-/// [ExposureCalculator.doseFraction]). The boundary therefore falls where the
-/// physics puts it rather than at an arbitrary number of decibels.
+/// Maps exposure to the wireframes' three colours.
 enum ExposureTone {
   normal,
   approaching,
@@ -31,8 +25,7 @@ enum ExposureTone {
     over => AppTheme.error,
   };
 
-  /// Words for the tone. Shown beside the colour, never instead of it, so the
-  /// state does not depend on telling teal from amber (WCAG 2.2 SC 1.4.1).
+  /// Words for the tone.
   String get label => switch (this) {
     normal => 'Within your limit',
     approaching => 'Approaching your limit',

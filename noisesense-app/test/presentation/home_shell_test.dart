@@ -110,10 +110,7 @@ void main() {
 
   testWidgets('Monitor shows the dose as a share of the limit', (tester) async {
     await pump(tester);
-    // The unrounded dose of these readings is 72.138 dB(A), which against a
-    // 70 dB limit is 10^(0.2138) = 163.6%, shown as 164%. (A first version of
-    // this test expected 162%, from the rounded 72.1: the error was in the
-    // test's arithmetic, not the app's.)
+    // The unrounded dose of these readings is 72.138 dB(A).
     expect(find.textContaining('164% of your limit'), findsOneWidget);
     expect(find.text('Start monitoring'), findsOneWidget);
   });

@@ -2,12 +2,6 @@ import '../../domain/models/noise_reading.dart';
 import '../../domain/repositories/outbox_store.dart';
 
 /// An [OutboxStore] opened on first use.
-///
-/// The real store is per user, so it cannot be opened until the user's ID is
-/// known, and finding that out is asynchronous. The dashboard, though, is
-/// built synchronously at sign-in. This wrapper lets it be handed a store at
-/// once while the database opens behind it; every call waits for the same
-/// single open.
 class DeferredOutboxStore implements OutboxStore {
   DeferredOutboxStore(Future<OutboxStore> Function() open) : _open = open;
 
@@ -38,8 +32,7 @@ class DeferredOutboxStore implements OutboxStore {
   Future<void> reject(DateTime timestamp, String error) async =>
       (await _ready).reject(timestamp, error);
 
-  /// Closes the store only if it was ever opened, so signing out quickly
-  /// does not open a database just to close it.
+  /// Closes the store only if it was ever opened.
   @override
   Future<void> close() async {
     final store = _store;

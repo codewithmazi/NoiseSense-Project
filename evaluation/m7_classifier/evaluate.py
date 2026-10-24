@@ -1,38 +1,4 @@
-"""M7: how well does the on-device noise-source classifier work?
-
-Scores YAMNet (the exact .tflite file bundled in the app) on ESC-50, using the
-exact category mapping the app ships (assets/models/source_categories.json),
-and reports a confusion matrix with per-class precision and recall.
-
-Method
-------
-* Dataset: ESC-50 (Piczak, 2015), 2,000 five-second clips in 50 classes,
-  licensed CC BY-NC 3.0. Its classes are mapped onto the app's four sources
-  in ESC50_TO_SOURCE below; classes with no clear source count as "other".
-* Two decision rules are compared, because the first one failed on the S9+:
-  - "mean":  average each category's score over the window's frames; pick the
-             highest; below `threshold` the window is "other". (The app's
-             original rule.)
-  - "vote":  each frame votes for its highest-scoring category if that score
-             reaches `threshold`; the window takes the majority of the votes
-             cast, or "other" if no frame voted.
-* Tuning without fooling ourselves: thresholds are chosen on ESC-50 folds 1-3
-  only (macro-F1), then every reported figure comes from folds 4-5, which the
-  tuning never saw. Reporting the tuning folds instead would overstate
-  accuracy.
-
-Limitations, stated rather than buried
---------------------------------------
-* ESC-50 has no plain speech class. "laughing" and "crying_baby" stand in,
-  which tests human-vocal sound, not conversation.
-* "Traffic" is car_horn, engine and siren; ESC-50 has no continuous road-noise
-  class, which is the commonest real exposure.
-* Clips are 5 s; the app classifies 60 s windows. Resampling here is
-  scipy's polyphase filter, not the app's Dart decimator, so this evaluates
-  the model and mapping, not the phone's exact audio path.
-
-Usage:  python evaluate.py <ESC-50 root> <output dir>
-"""
+"""M7: how well does the on-device noise-source classifier work?"""
 
 import csv
 import json
@@ -69,8 +35,7 @@ SILENCE = None  # index of YAMNet's "Silence" label, set in main()
 
 
 def frame_category_scores(it, idx, path):
-    """Per-frame category scores (frames x 4): max over each category's member
-    labels, then the frame's "Silence" score in the last column."""
+    """Per-frame category scores (frames x 4)."""
     with wave.open(str(path)) as w:
         x = np.frombuffer(w.readframes(w.getnframes()), np.int16).astype(np.float32) / 32768
         if w.getnchannels() > 1:
@@ -91,8 +56,6 @@ def frame_category_scores(it, idx, path):
 
 
 # A frame counts as silent when the model's "Silence" score is at least this.
-# Chosen from the S9+ diagnostic run, where a quiet room scored 0.62-0.64 and
-# continuous speech 0.01; any value between those separates them.
 SILENT_AT = 0.3
 
 
@@ -100,10 +63,7 @@ def decide(frames, rule, threshold):
     silence = frames[:, 3]
     frames = frames[:, :3]
     if rule == "active":
-        # "mean", but over non-silent frames only, so pauses between words or
-        # between passing cars do not dilute the window. Added after the S9+
-        # test: unbroken reading scored 0.91, normal speech with pauses fell
-        # under the threshold.
+        # "mean" over non-silent frames only.
         active = frames[silence < SILENT_AT]
         if len(active) == 0:
             return "other"
@@ -159,9 +119,7 @@ def main(esc_root, out_dir):
         shipped = metrics([c[1] for c in test], [decide(c[2], rule, 0.2) for c in test])[2]
         report.append(f"Rule '{rule}': threshold chosen on tuning folds = {best_t} "
                       f"(tuning macro-F1 {scores[best_t]:.3f})")
-        # Both matrices are printed and labelled. An earlier version printed
-        # only the tuned one, and its per-class figures were then quoted as if
-        # they described the shipped 0.2 threshold.
+        # Both matrices are printed and labelled.
         for label, t in ((f"TUNED threshold {best_t}", best_t), ("SHIPPED threshold 0.2", 0.2)):
             cm, per, macro = metrics([c[1] for c in test], [decide(c[2], rule, t) for c in test])
             report.append(f"  [{label}]  TEST macro-F1 {macro:.3f}")

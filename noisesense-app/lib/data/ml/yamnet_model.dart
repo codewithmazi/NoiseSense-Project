@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:flutter/services.dart';
@@ -6,12 +7,6 @@ import 'package:tflite_flutter/tflite_flutter.dart';
 import '../../domain/acoustics/source_classifier.dart';
 
 /// YAMNet through TensorFlow Lite (LiteRT), run on a background isolate.
-///
-/// [IsolateInterpreter] keeps inference off the UI thread, so a slow frame on
-/// an older phone delays the next classification rather than a screen
-/// redraw. The model and label list are bundled assets, so classification
-/// needs no network, which is what makes it "on-device" and keeps working
-/// with the outbox offline.
 class YamnetModel implements ScoreModel {
   YamnetModel._(this._interpreter, this._isolate, this.labels);
 
@@ -23,12 +18,16 @@ class YamnetModel implements ScoreModel {
     final isolate = await IsolateInterpreter.create(
       address: interpreter.address,
     );
-    final labels = (await rootBundle.loadString(labelsAsset))
-        .split('\n')
-        .where((l) => l.isNotEmpty)
-        .toList();
+    final labels = parseLabels(await rootBundle.loadString(labelsAsset));
     return YamnetModel._(interpreter, isolate, labels);
   }
+
+  /// One label per line, accepting LF or CRLF endings.
+  static List<String> parseLabels(String text) => const LineSplitter()
+      .convert(text)
+      .map((l) => l.trim())
+      .where((l) => l.isNotEmpty)
+      .toList();
 
   final Interpreter _interpreter;
   final IsolateInterpreter _isolate;

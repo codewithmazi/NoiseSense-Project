@@ -7,16 +7,6 @@ import '../view_models/measurement_view_model.dart';
 import 'message_banner.dart';
 
 /// Start and stop live measurement, and see what the microphone hears.
-///
-/// Three things are always visible while measuring, because each answers a
-/// question the user would otherwise have to guess at (Nielsen, 1994:
-/// visibility of system status):
-///
-/// * the live level, so they can see the app responding to sound;
-/// * progress through the current window, so they know when a reading will
-///   be saved and why stopping early saves nothing;
-/// * whether the figures are calibrated, so an assumed figure is never
-///   presented as a measured one.
 class MeasurementCard extends StatelessWidget {
   const MeasurementCard({super.key, required this.viewModel});
 
@@ -60,8 +50,7 @@ class MeasurementCard extends StatelessWidget {
                 ),
                 if (vm.isMeasuring) ...[
                   const SizedBox(height: AppTheme.spaceMd),
-                  // Announced politely as it changes, so a screen-reader user
-                  // can follow the level without it interrupting every second.
+                  // Announced politely to screen readers as it changes.
                   Semantics(
                     liveRegion: true,
                     label: live == null
@@ -93,9 +82,7 @@ class MeasurementCard extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: AppTheme.spaceXs),
-                  // States the coverage actually in force. If the phone
-                  // refused background measurement, the user is told now,
-                  // not left to discover a gap in their history later.
+                  // States the coverage actually in force.
                   Text(
                     vm.measuresInBackground
                         ? 'Keeps measuring with the screen off. Stop it here '

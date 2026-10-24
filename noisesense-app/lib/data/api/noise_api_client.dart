@@ -9,17 +9,7 @@ import '../../domain/models/noise_reading.dart';
 import '../../domain/repositories/noise_repository.dart';
 import 'token_provider.dart';
 
-/// HTTPS client for the NoiseSense API (API Gateway HTTP API in front of the
-/// ingest Lambda).
-///
-/// This is the only class in the app that knows the API's paths, JSON shapes
-/// and status codes. Everything above it works with domain types and
-/// [NoiseSenseException]s.
-///
-/// It makes exactly one attempt per call. Retrying is a policy decision that
-/// belongs to the offline outbox, which knows whether a reading can wait;
-/// this class only reports, through [NoiseSenseException.isRetryable],
-/// whether a failure is worth retrying.
+/// HTTPS client for the NoiseSense API (API Gateway HTTP API in front of the ingest Lambda).
 class NoiseApiClient implements NoiseRepository {
   NoiseApiClient({
     required String baseUrl,
@@ -33,8 +23,7 @@ class NoiseApiClient implements NoiseRepository {
   final TokenProvider _tokens;
   final http.Client _http;
 
-  /// Upper bound for each request. Includes Lambda cold starts, so it must
-  /// stay comfortably above the cold-start latency measured in experiment M2.
+  /// Upper bound for each request.
   final Duration timeout;
 
   @override
@@ -125,12 +114,7 @@ class NoiseApiClient implements NoiseRepository {
     return response;
   }
 
-  /// Maps an HTTP failure to its meaning.
-  ///
-  /// 429 and 5xx are retryable. This matters under load: the Learner Lab caps
-  /// Lambda at 10 concurrent executions, so a burst of submissions can be
-  /// throttled, and a throttled reading must wait in the outbox rather than
-  /// be thrown away.
+  /// Maps an HTTP failure to its meaning. 429 and 5xx are retryable.
   void _throwIfError(http.Response response) {
     final code = response.statusCode;
     if (code >= 200 && code < 300) return;
@@ -143,8 +127,7 @@ class NoiseApiClient implements NoiseRepository {
 
   // ----------------------------------------------------------------- mapping
 
-  /// Wire format for a reading. The client always supplies the timestamp,
-  /// because the backend uses it as the idempotency key for offline replay.
+  /// Wire format for a reading.
   static Map<String, Object?> _readingToJson(NoiseReading r) => {
     'timestamp': _formatTimestamp(r.timestamp),
     'dbA': r.dbA,
@@ -153,16 +136,11 @@ class NoiseApiClient implements NoiseRepository {
     if (r.confidence != null) 'confidence': r.confidence,
   };
 
-  /// Second-precision UTC ISO 8601, matching the backend's own format so that
-  /// client- and server-generated timestamps sort consistently.
+  /// Second-precision UTC ISO 8601, matching the backend's format.
   static String _formatTimestamp(DateTime utc) =>
       '${utc.toUtc().toIso8601String().split('.').first}Z';
 
   /// Builds a reading from one history item.
-  ///
-  /// Only public fields are read. The response also carries internal storage
-  /// keys (`PK`, `SK`), which are deliberately ignored so the app does not
-  /// come to depend on how the backend stores data.
   static NoiseReading _readingFromJson(Object? item) {
     if (item is! Map<String, dynamic>) {
       throw const UnexpectedResponseException('History item is not an object');
@@ -208,8 +186,7 @@ class NoiseApiClient implements NoiseRepository {
     final updatedAt = json['updatedAt'];
     return ExposureSettings(
       thresholdDbA: threshold,
-      // The PUT response omits the flag; a value the user just set is never
-      // the default.
+      // PUT omits the default flag; a value the user just set is never the default.
       isDefault: json['isDefault'] == true,
       updatedAt: updatedAt is String ? DateTime.tryParse(updatedAt) : null,
     );
