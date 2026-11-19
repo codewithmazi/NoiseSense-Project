@@ -49,7 +49,7 @@ jobs:
 
   deploy-backend:
     name: Deploy back end
-    needs: [test-backend, test-app]   #nothing deploys unless every test passed
+    needs: [test-backend, test-app]   # nothing deploys unless every test passed
     runs-on: ubuntu-latest
     outputs:
       user_pool_id: ${{ steps.outputs.outputs.user_pool_id }}
@@ -95,7 +95,7 @@ jobs:
     needs: deploy-backend
     runs-on: ubuntu-latest
     permissions:
-      contents: write   #only this job may create the release
+      contents: write   # only this job may create the release
     defaults:
       run:
         working-directory: noisesense-app
@@ -119,7 +119,11 @@ jobs:
           KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
-          echo "$KEYSTORE_BASE64" | base64 --decode > android/app/upload-keystore.jks
+          # Strip line breaks and spaces added when the secret was pasted.
+          printf '%s' "$KEYSTORE_BASE64" | tr -d '\r\n\t ' | base64 --decode > android/app/upload-keystore.jks
+          # Fail clearly if the secret did not decode to a usable keystore.
+          keytool -list -keystore android/app/upload-keystore.jks -storepass "$KEYSTORE_PASSWORD" -alias "$KEY_ALIAS" > /dev/null \
+            || { echo "::error::Keystore secret, password or alias is wrong. Re-create ANDROID_KEYSTORE_BASE64."; exit 1; }
           {
             echo "storeFile=upload-keystore.jks"
             echo "storePassword=$KEYSTORE_PASSWORD"
