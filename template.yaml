@@ -79,7 +79,7 @@ Resources:
   DataBucket:
     Type: AWS::S3::Bucket
     Properties:
-      BucketName: noise-exposure-data-cup
+      BucketName: noise-exposure-data-cup2
       PublicAccessBlockConfiguration:       #blocking public access
         BlockPublicAcls: true
         BlockPublicPolicy: true
